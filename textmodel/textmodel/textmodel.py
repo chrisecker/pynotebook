@@ -1,6 +1,7 @@
 # -*- coding: latin-1 -*-
 
 
+from __future__ import print_function
 from .texeltree import Text, Group, NewLine, Tabulator, insert, takeout, \
     ENDMARK, is_homogeneous, provides_childs, grouped, length, iter_childs, depth, \
     is_list_efficient, is_root_efficient, strip2list, EMPTYSTYLE
@@ -41,7 +42,7 @@ def dump_range(texel, i1, i2, i0=0, indent=0):
     s = texel.__class__.__name__
     if texel.is_text:
         s += " "+repr(texel.text)
-    print " "*indent+"%i:%i %s" % (i0, i0+length(texel), s)
+    print(" "*indent+"%i:%i %s" % (i0, i0+length(texel), s))
     if provides_childs(texel):
         skip = False
         for j1, j2, child in iter_childs(texel):
@@ -49,7 +50,7 @@ def dump_range(texel, i1, i2, i0=0, indent=0):
                 dump_range(child, i1-j1, i2-j1, i0+j1, indent+4)
                 skip = False
             elif not skip:
-                print " "*indent+'...'
+                print(" "*indent+'...')
                 skip = True # skip output of more '...'
 
 
@@ -108,9 +109,9 @@ class TextModel(Model):
         if i2 is None:
             i2 = length(self.texel)
         if i1<0:
-            raise IndexError, i1
+            raise IndexError(i1)
         if i2>len(self):
-            raise IndexError, i2
+            raise IndexError(i2)
         return _get_text(self.texel, i1, i2)
 
     def get_style(self, i):
@@ -322,7 +323,9 @@ def pycolorize(rawtext, coding='latin-1'):
         _KEYWORD:           '#C00000',
         #_TEXT:              '#000000',
     }
-    def tokeneater(toktype, toktext, (srow,scol), (erow,ecol), line):
+    def tokeneater(toktype, toktext, xxx_todo_changeme, xxx_todo_changeme1, line):
+        (srow,scol) = xxx_todo_changeme
+        (erow,ecol) = xxx_todo_changeme1
         i1 = model.position2index(srow-1, scol)
         i2 = model.position2index(erow-1, ecol)
         if token.LPAR <= toktype and toktype <= token.OP:

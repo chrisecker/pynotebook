@@ -1,5 +1,6 @@
 # -*- coding: latin-1 -*-
 
+from __future__ import print_function
 from . import texeltree
 from .texeltree import G, T, length, grouped, provides_childs, iter_childs, \
     is_root_efficient, is_list_efficient, is_homogeneous, calc_length, \
@@ -24,7 +25,7 @@ class StyleIterator:
         self.n -= m
         try:
             while self.n <= 0:
-                n, self.style = self.iterable.next()
+                n, self.style = next(self.iterable)
                 self.n += n
         except StopIteration:
             self.finished = True
@@ -287,7 +288,7 @@ def test_10():
     if 0:
         i = 0
         while not iterator.finished:
-            print i, iterator.n, iterator.style
+            print(i, iterator.n, iterator.style)
             iterator.advance(1)
             i += 1
     g = grouped(set_styles(t, 2, iterator))
@@ -323,5 +324,5 @@ def test_12():
     g = grouped(set_parstyles(t, 5, iterator))
     texeltree.dump(g)
 
-    print get_parstyles(g, 0, length(g))
+    print(get_parstyles(g, 0, length(g)))
 
