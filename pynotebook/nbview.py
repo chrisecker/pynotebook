@@ -91,7 +91,7 @@ class Frame(ChildBox):
     def draw(self, x, y, dc, styler):
         device = self.device
         dc.SetBrush(wx.Brush(self.fillcolor, wx.SOLID))
-        dc.SetPen(wx.Pen(self.linecolor,style=wx.SOLID))
+        dc.SetPen(wx.Pen(self.linecolor, style=wx.SOLID))
         dc.DrawRectangle(x, y, self.width, self.height)
 
         for j1, j2, x1, y1, child in self.iter_boxes(0, x, y):
@@ -102,7 +102,7 @@ class Frame(ChildBox):
 
 
 def draw_bracket(x, y, h, dc):
-    dc.SetPen(wx.Pen("darkblue", 1*scalefactor))
+    dc.SetPen(wx.Pen(wx.Colour("darkblue"), int(1*scalefactor+0.5)))
     dc.DrawLines([
         (x+10, y),
         (x+6, y),
