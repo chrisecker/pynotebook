@@ -1,3 +1,12 @@
+Version 0.3.0
+~~~~~~~~~~~~~
+- switched to python 3
+- restructured repository
+- removeal of "Dot"
+- renamed "Text" to "GraphicsText"
+- better clipboard support (bitmaps)
+
+
 Version 0.2.6
 ~~~~~~~~~~~~~
 - make pynotebook work with wxpython >= 3.0
