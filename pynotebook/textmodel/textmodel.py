@@ -94,7 +94,8 @@ class TextModel(Model):
         return state
 
     def __setstate__(self, state):
-        self.__dict__ = state
+        if state is not None:
+            self.__dict__ = state
 
     def get_xtexel(self):
         """Returns the texel tree extended by an ENDMARK glyph."""

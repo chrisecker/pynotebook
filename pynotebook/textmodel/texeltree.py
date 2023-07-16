@@ -63,8 +63,9 @@ class Single(Texel):
         return clone
 
     def __setstate__(self, state):
-        self.__dict__ = state.copy()
-        self.style = as_style(self.style)
+        if state is not None:
+            self.__dict__ = state.copy()
+            self.style = as_style(self.style)
 
 
 class Text(Texel):
@@ -83,8 +84,9 @@ class Text(Texel):
         return clone
     
     def __setstate__(self, state):
-        self.__dict__ = state.copy()
-        self.style = as_style(self.style)
+        if state is not None:
+            self.__dict__ = state.copy()
+            self.style = as_style(self.style)
 
 T = Text
 
@@ -154,9 +156,10 @@ class NewLine(Single):
         return clone
 
     def __setstate__(self, state):
-        self.__dict__ = state.copy()
-        self.style = as_style(self.style)
-        self.parstyle = as_style(self.parstyle)
+        if state is not None:
+            self.__dict__ = state.copy()
+            self.style = as_style(self.style)
+            self.parstyle = as_style(self.parstyle)
 
 
 class Tabulator(Single):

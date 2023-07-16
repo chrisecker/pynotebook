@@ -135,7 +135,8 @@ class BitmapRGB(Single):
         return _bitmap_saver(self)
 
     def __setstate__(self, data):
-        self.size, self.data = _bitmap_loader(data)[:2]
+        if data is not None:
+            self.size, self.data = _bitmap_loader(data)[:2]
 
     def draw(self, gc, state):
         w, h = self.size
@@ -161,7 +162,8 @@ class BitmapRGBA(Single):
         return _bitmap_saver(self)
 
     def __setstate__(self, data):
-        self.size, self.data, self.alpha = _bitmap_loader(data)
+        if data is not None:
+            self.size, self.data, self.alpha = _bitmap_loader(data)
 
     def draw(self, gc, state):
         w, h = self.size
