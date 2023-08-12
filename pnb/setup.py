@@ -1,11 +1,11 @@
 # -*- coding: latin-1 -*-
 
-
-from setuptools import setup
+from distutils.core import setup
 
 
 with open('README') as file:
     long_description = file.read()
+
 
 setup(name='pnb',
       version='0.3.0',

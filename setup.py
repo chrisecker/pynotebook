@@ -18,7 +18,7 @@ setup(name='pynotebook',
       url='https://github.com/chrisecker/pynotebook',
       license='BSD',
       packages=['pynotebook', 'pynotebook/textmodel', 'pynotebook/wxtextview'],
-      install_requires = ['cerealizer'],
+      install_requires = ['Cerealizer'],
       keywords = ['Interactive', 'Interpreter', 'Notebook', 'Shell', 'wxPython'],
       classifiers = [
         'Intended Audience :: Developers',
