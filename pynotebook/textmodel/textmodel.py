@@ -1,8 +1,6 @@
 # -*- coding: latin-1 -*-
 
 
-from __future__ import absolute_import
-from __future__ import print_function
 from .texeltree import Text, Group, NewLine, Tabulator, insert, takeout, \
     ENDMARK, is_homogeneous, provides_childs, grouped, length, iter_childs, depth, \
     is_list_efficient, is_root_efficient, strip2list, EMPTYSTYLE
@@ -12,7 +10,6 @@ from .styles import updated_style, create_style, get_styles, set_styles, \
 from .weights import find_weight, get_weight, NotFound
 from .modelbase import Model
 import re
-from six.moves import range
 
 
 

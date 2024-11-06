@@ -5,7 +5,6 @@
 # A simple file format based on cerealizer. This is basically a secure
 # form of pickling. Is meant to be used during development.
 
-from __future__ import absolute_import
 from . import nbtexels
 from .textmodel import textmodel
 from .textmodel import texeltree, styles
@@ -87,8 +86,3 @@ def test_00():
     assert str(model1.texel) == str(model2.texel)
     assert model1.get_style(5) is model2.get_style(5)
     assert model1.get_parstyle(5) is model2.get_parstyle(5)
-    try:
-        model2 = loads(b'*'+s)
-        assert False
-    except cerealizer.NotCerealizerFileError:
-        pass

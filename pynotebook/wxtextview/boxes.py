@@ -1,12 +1,9 @@
 # -*- coding: latin-1 -*-
 
-from __future__ import absolute_import
-from __future__ import print_function
 from ..textmodel.texeltree import EMPTYSTYLE
 from .testdevice import TESTDEVICE
 from .rect import Rect
 from math import ceil
-from six.moves import range
 
 
 # Coordinates:

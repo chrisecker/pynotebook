@@ -28,7 +28,6 @@ from .linewrap import simple_linewrap
 from .rect import Rect
 from .builder import BuilderBase
 from .builder import Factory as _Factory
-from six.moves import range
 
 
 

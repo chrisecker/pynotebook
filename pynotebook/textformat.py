@@ -1,11 +1,8 @@
 # -*- coding: latin-1 -*-
 
 
-from __future__ import absolute_import
-from __future__ import print_function
 from .textmodel.textmodel import TextModel
-from .textmodel.texeltree import NULL_TEXEL
-
+from .textmodel.texeltree import NULL_TEXEL, iter_childs, get_text
 from .nbtexels import Cell, TextCell, ScriptingCell, mk_textmodel
 
 import re
@@ -15,7 +12,7 @@ def get_cells(texel):
     if isinstance(texel, Cell):
         return [texel]
     r = []
-    for i1, i2, child in texel.iter_childs():
+    for i1, i2, child in iter_childs(texel):
         r.extend(get_cells(child))
     return r
 
@@ -24,13 +21,13 @@ def totext(model):
     r = []
     for cell in get_cells(model.texel):
         if isinstance(cell, TextCell):
-            text = cell.text.get_text()
+            text = get_text(cell.text)
             r.append("[Text]:\n"+text)
         else:
-            text = cell.input.get_text()
+            text = get_text(cell.input)
             if text:
                 r.append(("[In %i]:\n"%cell.number)+text)
-            text = cell.output.get_text()
+            text = get_text(cell.output)
             if text:
                 r.append(("[Out %i]:\n"%cell.number)+text)
     return u"\n".join(r)
@@ -96,9 +93,9 @@ def fromtext(s, ScriptingCell=ScriptingCell):
 
 
 def test_00():
-    text = """[In 1]:
+    text = """[In 0]:
 1+2
-[Out 2]:
+[Out 0]:
 3
 [Text]:
 Zeile 1

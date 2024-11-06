@@ -1,7 +1,6 @@
 # -*- coding: latin-1 -*-
 
 
-from __future__ import absolute_import
 from .textmodel.textmodel import TextModel, dump_range
 from .textmodel.texeltree import Texel, T, G, NL, Container, Single, \
     iter_childs, dump, NULL_TEXEL, length, grouped, copy

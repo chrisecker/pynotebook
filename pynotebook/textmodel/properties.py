@@ -1,4 +1,3 @@
-import six
 from sys import intern
 # -*- coding: latin-1 -*-
 
@@ -16,7 +15,7 @@ class Properties(object):
     def set(self, **kw):
         """set(name=value, ...) sets property values according to the given
         keyword arguments."""
-        for name, value in six.iteritems(kw):
+        for name, value in kw.items():
             try:
                 getattr(self, 'set_' + name)(value)
             except AttributeError:

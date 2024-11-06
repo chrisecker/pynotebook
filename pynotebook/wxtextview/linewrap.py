@@ -1,6 +1,5 @@
 # -*- coding: latin-1 -*-
 
-from __future__ import print_function
 from .testdevice import TESTDEVICE
 from .boxes import TabulatorBox, TextBox, EmptyTextBox, NewlineBox, Row
 

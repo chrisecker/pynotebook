@@ -26,8 +26,7 @@ import string
 import wx
 import sys
 import weakref
-import six
-
+import pickle
 
 
 sepwidth = 20000 # a number which is just larger than the textwidth
@@ -1071,7 +1070,7 @@ class NBView(_WXTextView):
         data.Add(plain)
 
         pickled = wx.CustomDataObject("pytextmodel")
-        pickled.SetData(six.moves.cPickle.dumps(textmodel))
+        pickled.SetData(pickle.dumps(textmodel))
         data.Add(pickled)
             
         wx.TheClipboard.Open()

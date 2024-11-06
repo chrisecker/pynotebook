@@ -1,7 +1,5 @@
 # -*- coding: latin-1 -*-
 
-from __future__ import absolute_import
-from __future__ import print_function
 from .clients import Client, Aborted
 from .nbstream import StreamRecorder
 from .textmodel.textmodel import TextModel
@@ -15,7 +13,6 @@ import rlcompleter
 import types
 import token, tokenize, keyword
 import io
-import six
 
 
 debug = 0
@@ -326,9 +323,9 @@ def __transform__(obj, iserr):
         return colorized
 
     def help(self, word):
-        import six.moves.builtins
+        import builtins
         ns = {}
-        ns.update(six.moves.builtins.__dict__)
+        ns.update(builtins.__dict__)
         ns.update(self.namespace)        
         try:
             obj = locate(word, ns)
@@ -339,9 +336,9 @@ def __transform__(obj, iserr):
             return pydoc.plain(pydoc.render_doc(obj, "Help on %s"))
         except Exception as e:
             try:
-                return six.text_type(e)
-            except UnicodeDecodeError:
                 return str(e)
+            except:
+                return repr(e)
 
 
 

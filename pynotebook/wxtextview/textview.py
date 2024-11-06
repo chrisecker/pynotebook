@@ -1,13 +1,10 @@
 # -*- coding: latin-1 -*-
 
 
-from __future__ import print_function
-from __future__ import absolute_import
 from ..textmodel.viewbase import ViewBase, overridable_property
 from ..textmodel.modelbase import Model
 from ..textmodel.textmodel import dump_range
 from ..textmodel import TextModel
-from six.moves import range
 
 
 debug = 0

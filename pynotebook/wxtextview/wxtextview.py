@@ -1,9 +1,7 @@
 # -*- coding: latin-1 -*-
 
 
-from __future__ import absolute_import
 import wx
-import six.moves.cPickle
 import string
 
 from ..textmodel import TextModel
@@ -14,8 +12,7 @@ from .testdevice import TESTDEVICE
 from .simplelayout import Builder
 
 from math import ceil
-from six import unichr
-from six.moves import range
+import pickle
 
 
 
@@ -99,7 +96,7 @@ class WXTextView(wx.ScrolledWindow, TextView):
         alt = event.AltDown()        
         action = self.actions.get((keycode, ctrl, alt))
         if action is None:
-            action = unichr(keycode)
+            action = chr(keycode)
         self.handle_action(action, shift)
 
     def to_clipboard(self, textmodel):
@@ -107,7 +104,7 @@ class WXTextView(wx.ScrolledWindow, TextView):
         plain = wx.TextDataObject()
         plain.SetText(text)
         pickled = wx.CustomDataObject("pytextmodel")
-        pickled.SetData(six.moves.cPickle.dumps(textmodel))
+        pickled.SetData(pickle.dumps(textmodel))
         data = wx.DataObjectComposite()
         data.Add(plain)
         data.Add(pickled)
@@ -123,7 +120,7 @@ class WXTextView(wx.ScrolledWindow, TextView):
         textmodel = None
         wx.TheClipboard.Open()
         if wx.TheClipboard.GetData(pickled):            
-            textmodel = six.moves.cPickle.loads(pickled.GetData())
+            textmodel = pickle.loads(pickled.GetData())
 
         elif wx.TheClipboard.GetData(plain):
             textmodel = self._TextModel(plain.GetText())

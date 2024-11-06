@@ -1,6 +1,5 @@
 # -*- coding: latin-1 -*-
 
-from __future__ import absolute_import
 import wx
 
 

@@ -2,7 +2,6 @@
 
 
 
-from __future__ import absolute_import
 def pyshell(namespace=None):
     import wx.py
     style = wx.DEFAULT_FRAME_STYLE 

@@ -42,9 +42,7 @@
 #
 
 
-from __future__ import absolute_import
-from __future__ import print_function
-from six.moves import range
+
 class Mark:
     parent = None
     def __init__(self, label, n=0):
