@@ -11,7 +11,9 @@ import sys
 import traceback
 import rlcompleter
 import types
-import token, tokenize, keyword
+import token
+import tokenize
+import keyword
 import io
 
 
@@ -42,7 +44,7 @@ def pycolorize(texel, styles=None, bgcolor='#FFFFFF'):
                                        # it in the end
     position2index = model.position2index
     text = get_text(model.texel)
-    instream = io.StringIO(text).readline
+    instream = io.BytesIO(text.encode('utf-8')).readline
 
     _KEYWORD = token.NT_OFFSET + 1
     _TEXT    = token.NT_OFFSET + 2
@@ -66,31 +68,37 @@ def pycolorize(texel, styles=None, bgcolor='#FFFFFF'):
         for key, fgcolor in _colors.items():
             _styles[key] = create_style(bgcolor=bgcolor, textcolor=fgcolor)
 
-    class TokenEater:
+    class Painter:
         ai = 0
         breaks = [0]+mk_breaklist(model.texel)
         l = []
         def moveto(self, i, style=_styles[None]):
-            # move index to $i$ and create texels the text between $ai$ and $i$
+            # move index to $i$ and create texels the text between $ai$ and $i$            
             ai = self.ai
-            if i<ai: 
-                raise IndexError
+            if i<ai:
+                print("ai=", ai)
+                raise IndexError(i)
             if i == ai:
                 return
             t = [Text(t, style) for t in text[ai:i].split('\n')]
             self.l.extend([x for x in join(t, NL) if length(x)])
             self.ai = i
             
-        def __call__(self, toktype, toktext, xxx_todo_changeme, xxx_todo_changeme1, line):
-            (srow,scol) = xxx_todo_changeme
-            (erow,ecol) = xxx_todo_changeme1
+        def add(self, t):
+            srow, scol = t.start
+            erow, ecol = t.end
+            if srow < 1:
+                return
+            toktype = t.type
+            
             if token.LPAR <= toktype and toktype <= token.OP:
                 toktype = token.OP
-            elif toktype == token.NAME and keyword.iskeyword(toktext):
+            elif toktype == token.NAME and keyword.iskeyword(t.string):
                 toktype = _KEYWORD
-                
+
             i1 = self.breaks[srow-1]+scol
             i2 = self.breaks[erow-1]+ecol
+
             if debug:
                 assert i1 == position2index(srow-1, scol)
                 assert i2 == position2index(erow-1, ecol)
@@ -98,17 +106,21 @@ def pycolorize(texel, styles=None, bgcolor='#FFFFFF'):
                 style = _styles[toktype]
             except:
                 style = _styles[None]
+
             self.moveto(i1)
             self.moveto(i2, style=style)
 
-    eater = TokenEater()
+    painter = Painter()    
     try:
-        tokenize.tokenize(instream, eater)
-    except (tokenize.TokenError, IndentationError):
-        pass
+        l = list(tokenize.tokenize(instream))
+    except:
+        return texel
 
-    eater.moveto(len(text))
-    return grouped(eater.l[:-1]) # note that we are stripping of the last NL
+    for t in l:
+        painter.add(t)
+        
+    painter.moveto(len(text))
+    return grouped(painter.l[:-1]) # note that we are stripping of the last NL
 
 
 class FakeFile:
@@ -301,9 +313,10 @@ def __transform__(obj, iserr):
         return options
 
     def colorize(self, inputtexel, styles=None, bgcolor='white'):        
-        if 1:
-            # The pycolorize function in texetmodel was ment for
-            # benchmarking the textmodel - it is quite inefficient!
+        if 0:
+            # The pycolorize function in textmodel was ment for
+            # benchmarking the textmodel - it is quite inefficient and
+            # does not handle the background color!
             text = get_text(inputtexel).encode('utf-8')
             from .textmodel.textmodel import pycolorize as _pycolorize
             try:
