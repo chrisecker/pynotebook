@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "pnb"
+version = "0.3.0"
+description = "A beautiful and lightweight notebook interface for the python interpreter."
+authors = ["C. Ecker <textmodelview@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pynotebook = "^0.3.0"
+
+[tool.poetry.scripts]
+pnb = "pnb:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
