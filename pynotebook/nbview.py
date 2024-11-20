@@ -1043,6 +1043,22 @@ class NBView(_WXTextView):
         self.index = i+1
 
     def to_clipboard(self, textmodel):
+        if 0:
+            # Storing composite data is often problematic and varies
+            # by platform and version. Plain text seems to be more
+            # stable. The following code might be useful for
+            # debugging.
+            text = textmodel.get_text()
+            plain = wx.TextDataObject()        
+            plain.SetText(text)
+            if wx.TheClipboard.Open():
+                wx.TheClipboard.SetData(plain)
+                wx.TheClipboard.Close()
+                print("ok")
+            else:
+                print("failed")
+            return
+        
         # rewrite to add bitmap capabilies
         data = wx.DataObjectComposite()        
         
@@ -1064,18 +1080,27 @@ class NBView(_WXTextView):
             _data.SetBitmap(bmp)
             data.Add(_data)
 
-        text = textmodel.get_text()
-        plain = wx.TextDataObject()        
-        plain.SetText(text)
-        data.Add(plain)
-
+        # Strange bug on ubuntu with wx 4.2.2: our custom data must be
+        # before plain text. Otherwise CLIPBOARD is not changed. This
+        # bug is somehow confusing, because copy/paste behaves ok from
+        # one wx widget to the other of the same process. The system
+        # selections are however not changed (CLIPBOARD, PRIMARY,
+        # SECONDARY). If plain text is the last optioin, copying to
+        # CLIPBOARD works.  Copying text from a TextCtrl on the other
+        # hand changes CLIPBOARD and PRIMARY.
+                
         pickled = wx.CustomDataObject("pytextmodel")
         pickled.SetData(pickle.dumps(textmodel))
         data.Add(pickled)
             
-        wx.TheClipboard.Open()
-        wx.TheClipboard.SetData(data)
-        wx.TheClipboard.Close()
+        text = textmodel.get_text()
+        plain = wx.TextDataObject()        
+        plain.SetText(text)
+        data.Add(plain)
+        
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(data)
+            wx.TheClipboard.Close()
 
     def read_clipboard(self):
         # add bitmap capabilities to the clipboard
