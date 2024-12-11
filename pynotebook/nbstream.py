@@ -43,7 +43,7 @@ class Stream(StreamBase):
             if isinstance(obj, str):
                 new = TextModel(obj, **properties)
             elif isinstance(obj, bytes):
-                u = b.decode('utf-8')
+                u = obj.decode('utf-8')
                 new = TextModel(u, **properties)
             else:
                 new = TextModel(str(obj), **properties)
