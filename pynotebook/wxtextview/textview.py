@@ -4,7 +4,9 @@
 from ..textmodel.viewbase import ViewBase, overridable_property
 from ..textmodel.modelbase import Model
 from ..textmodel.textmodel import dump_range
+from ..textmodel.texeltree import length, iter_childs
 from ..textmodel import TextModel
+import sys
 
 
 debug = 0
@@ -20,6 +22,51 @@ def undo(info):
         for child in reversed(info):
             redo.append(undo(child))
     return redo
+
+
+inf = sys.maxsize
+def right_limit(texel, i0, i):
+    if i <= i0 or i>= i0+length(texel):
+        return inf 
+    if texel.is_container: 
+        mutability = texel.get_mutability()
+        k = -1    
+        for i1, i2, child in iter_childs(texel): 
+            k += 1
+            if i == i0+i1: 
+                if not mutability[k]: 
+                    return i
+                return i0+i2 
+            if i0+i1 < i < i0+i2:  # mitten in dem Element
+                return min(i0+i2, right_limit(child, i0+i1, i))
+    if texel.is_group:
+        for i1, i2, child in iter_childs(texel): 
+            if i0+i1 < i < i0+i2:  # mitten in dem Element
+                return right_limit(child, i0+i1, i)
+    return inf
+
+
+def left_limit(texel, i0, i):
+    # i ist im absoluten KS
+    if i <= i0 or i>= i0+length(texel):
+        return 0
+    if texel.is_container: 
+        mutability = texel.get_mutability()
+        k = -1    
+        for i1, i2, child in iter_childs(texel): 
+            k += 1
+            if i == i0+i2: 
+                if not mutability[k]: 
+                    return i
+                return i0+i2 
+            if i0+i1 < i < i0+i2:  # mitten in dem Element
+                return max(i0+i1, left_limit(child, i0+i1, i))
+    if texel.is_group:
+        for i1, i2, child in iter_childs(texel): 
+            if i0+i1 < i < i0+i2:  # mitten in dem Element
+                return left_limit(child, i0+i1, i)
+    return 0
+
 
 
 class TextView(ViewBase, Model):
@@ -275,7 +322,7 @@ class TextView(ViewBase, Model):
         return self.model.get_style(index-1)
 
     def handle_action(self, action, shift=False):
-        #print "action = ", action, shift
+        #print("action = ", action, shift)
         model = self.model
         index = self.index
         layout = self.layout
@@ -421,8 +468,10 @@ class TextView(ViewBase, Model):
             i = model.linestart(row)+model.linelength(row)-1
             if i == index:
                 i += 1
-            self.to_clipboard(model[index:i])
-            self.remove(index, i)
+            i = min(i, right_limit(model.texel, 0, index))
+            j1, j2 = layout.extend_range(index, i)
+            self.to_clipboard(model[j1:j2])
+            self.remove(j1, j2)
         elif action == 'del_word_left':
             # find the beginning of the word
             i = index
@@ -433,7 +482,9 @@ class TextView(ViewBase, Model):
                     i = i-1
             except IndexError:
                 i = 0
-            self.remove(i, index)
+            i = max(i, left_limit(model.texel, 0, index))                
+            j1, j2 = layout.extend_range(i, index)
+            self.remove(j1, j2)
         else:                  
             #print keycode
             assert len(action) == 1 # single character

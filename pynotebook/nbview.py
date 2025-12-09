@@ -602,7 +602,9 @@ class Builder(BuilderBase):
         key = inp, 'input'
         try:
             inbox = self.cache.get(key)
-        except KeyError:        
+        except KeyError:
+            inbox = None
+        if inbox is None:
             client = self._clients.get_matching(texel)
             model = mk_textmodel(Group([inp, sep2]))
 

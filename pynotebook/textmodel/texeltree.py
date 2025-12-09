@@ -539,10 +539,15 @@ def takeout(texel, i1, i2):
         return join(r1, tmp, r4), join(k1, k2, k3)
         
     elif texel.is_container:
+        m = texel.get_mutability()
         for k, (j1, j2, child) in enumerate(iter_childs(texel)):
             if  i1 < j2 and j1 < i2: # test of overlap
+                if not m[k]:
+                    raise IndexError("Takeout not permitted in immutable " \
+                                     "container element.")
                 if not (j1 <= i1 and i2 <= j2):
-                    raise IndexError((i1, i2))
+                    raise IndexError("Taking indices exceed countainer " \
+                                     "element boundaries. ")
                 childs = list(texel.childs) # this always creates a new list!
                 tmp, kernel = takeout(
                     child, max(0, i1-j1), min(length(texel), i2-j1))
