@@ -5,6 +5,18 @@ description = "A wxPython based notebook environment for interactive computing."
 authors = ["C. Ecker <textmodelview@gmail.com>"]
 readme = "README.md"
 packages = [{include = "pynotebook"}]
+exclude = [
+    "pynotebook/**/__pycache__",
+    "pynotebook/**/*.pyc",
+    "pynotebook/**/*.pyo",
+    "pynotebook/**/*.py~",
+    "pynotebook/**/*.swp",
+    "pynotebook/**/*~",
+    "pynotebook/**/.#*",
+    "pynotebook/**/*.pdf",
+    "pynotebook/wxtextview/ecker@*"
+]
+
 
 [tool.poetry.dependencies]
 python = "^3.10"
