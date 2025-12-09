@@ -1,35 +1,25 @@
-pynotebook
-==========
+# pynotebook
 
-.. image::
-   https://raw.githubusercontent.com/chrisecker/textmodel/master/pynotebook/screenshots/ball2_small.png
+![Screenshot](https://raw.githubusercontent.com/chrisecker/textmodel/master/pynotebook/screenshots/ball2_small.png)
 
-`More screenshots <https://github.com/chrisecker/textmodel/tree/master/pynotebook/screenshots>`_
+[More screenshots](https://github.com/chrisecker/textmodel/tree/master/pynotebook/screenshots)
 
+## Introduction
 
-Introduction
-------------
+Pynotebook is a library for creating notebook applications in wxPython.  
+A notebook is a document that can contain program code, text, and graphics.  
+Notebooks provide a pleasant way to develop and document code, as well as to store ideas.
 
-Pynotebook is a library for creating notebook applications in
-wxpython. A notebook is a document which can contain program code,
-text and graphics.  Notebooks are a pleasant way to develop and
-document code and to store ideas.
+Unlike other Python notebook interfaces such as Jupyter or Spyder, Pynotebook (pnb) is very lightweight and can be easily embedded in wxPython applications.
 
-Unlike other python notebook interfaces such as jupyter or spyder, pnb
-is very lightweight and can be easily embeded in wxpython
-applications.
+Although Python is the native language for Pynotebook, it is also possible to create notebooks for other scripting languages.
 
-Although python is the native language for pynotebook, it is
-possible create notebooks for other scripting languages.
+Applications using the Pynotebook library include:
 
-Applications using the Pynotebook library are
+- [pnb application](https://pypi.python.org/pypi/pnb) – a Python notebook application  
+- [rnb](https://pypi.python.org/pypi/rnb) – an experimental notebook for the R programming language
 
-- `pnb application <https://pypi.python.org/pypi/pnb>`_ (a python notebook application) and
-- `rnb <https://pypi.python.org/pypi/rnb>`_ (an experimental notebook for the r programming language)
+## Links
 
-
-
-Links
------
-- `github page <https://github.com/chrisecker/textmodel/tree/master/pynotebook>`_
+- [GitHub page](https://github.com/chrisecker/textmodel/tree/master/pynotebook)
 
