@@ -255,7 +255,7 @@ class MainWindow(wx.Frame):
     paste = action2cmd("Paste\tCtrl-V", "paste")
     indent = action2cmd("Indent\tCtrl-I", "indent")
     dedent = action2cmd("Dedent\tCtrl-U", "dedent")
-    complete = action2cmd("Complete\tTAB", "complete")
+    complete = action2cmd("Complete\tTab", "complete")
     help = action2cmd("Help\tCtrl-H", "help")
     execute = method2cmd("Execute Cell\tShift-Return", "execute")
     execute_all = method2cmd("Execute all", "execute_all")

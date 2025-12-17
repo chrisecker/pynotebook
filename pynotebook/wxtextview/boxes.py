@@ -86,7 +86,7 @@ class Box:
         return SimpleGroupBox(l, device=self.device)
 
     def __len__(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def dump_boxes(self, i, x, y, indent=0):
         """Print out a graphical representation of the tree."""
@@ -180,7 +180,7 @@ class Box:
         """Draws box and all child boxes at origin (x, y)."""
         device = self.device
         for j1, j2, x1, y1, child in self.iter_boxes(0, x, y):
-            r = Rect(x1, y1, x1+child.width, y1+child.height)
+            r = Rect(int(x1), int(y1), int(x1+child.width), int(y1+child.height)) # XXX
             if device.intersects(dc, r):
                 child.draw(x1, y1, dc, styler)
 
@@ -191,7 +191,7 @@ class Box:
         device = self.device
         for j1, j2, x1, y1, child in self.iter_boxes(0, x, y):
             if i1 < j2 and j1< i2:
-                r = Rect(x1, y1, x1+child.width, y1+child.height)
+                r = Rect(int(x1), int(y1), int(x1+child.width), int(y1+child.height)) # XXX                
                 if device.intersects(dc, r):
                     child.draw_selection(i1-j1, i2-j1, x1, y1, dc)
 
@@ -230,8 +230,6 @@ class Box:
         """Returns the index which is closest to point (x, y). A return value
         of None means: no matching index position found!
         """
-        print(self)
-        raise NotImplemented # XXX
         l = [0 ,len(self)]
         for j1, j2, x1, y1, child in self.riter_boxes(0, 0, 0):
             if x1 <= x <= x1+child.width and \
@@ -270,6 +268,10 @@ class Box:
         # sense (e.g. the square root). By returning False, Boxes of
         # such texels can signal that insert should go into the
         # other (the left) texel.
+        #
+        # can_leftappend is only used to find the responsible child
+        # for user interaction such as drawing the cursor. It has no
+        # influence on operations to the texeltree.
         return True
 
 
