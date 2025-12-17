@@ -5,105 +5,94 @@ from .boxes import TabulatorBox, TextBox, EmptyTextBox, NewlineBox, Row
 
 
 
-def find_goodbreak(box, w):
-    # Try to break after a space. Otherwise, return None.
-    if not isinstance(box, TextBox):
-        return 0
+def find_goodbreak(box, maxw):
+    """Letztes Leerzeichen innerhalb maxw suchen."""
+    if not isinstance(box, TextBox) or maxw <= 0:
+        return None
+
     text = box.text
     parts = box.measure_parts(text)
 
-    for i, part in reversed(tuple(enumerate(parts))):
-        if i>0 and part <= w and text[i] == ' ':
-            return i+1
+    for i in range(len(text) - 1, -1, -1):
+        if text[i] == ' ' and parts[i] <= maxw:
+            return i + 1
     return None
 
-
-def find_anybreak(box, w):
-    if not isinstance(box, TextBox):
+def find_anybreak(box, maxw):
+    """Ersten Überlauf finden."""
+    if not isinstance(box, TextBox) or maxw <= 0:
         return 0
-    text = box.text
-    parts = box.measure_parts(text)
 
+    parts = box.measure_parts(box.text)
     for i, part in enumerate(parts):
-        if part > w:
-            return i
-    return None
-
+        if part > maxw:
+            return max(i, 1)  # mindestens 1 Zeichen
+    return len(parts)
 
 def split_box(box, i):
     if not isinstance(box, TextBox):
         assert i == 0
         return EmptyTextBox(), box
-    text = box.text
-    style = box.style
-    device = box.device
-    b1 = box.__class__(text[:i], style, device)
-    b2 = box.__class__(text[i:], style, device)
-    return b1, b2
+
+    text, style, device = box.text, box.style, box.device
+    return (
+        box.__class__(text[:i], style, device),
+        box.__class__(text[i:], style, device),
+    )
 
 
-def simple_linewrap(boxes, maxw, tabstops=(), wordwrap=True, 
-                    device=TESTDEVICE):
-    assert isinstance(maxw, int)
-    l = []
-    rows = [l]
+def simple_linewrap(boxes, maxw, wordwrap=True, device=TESTDEVICE):
+    rows, line = [], []
     w = 0
-    boxes = list(boxes[:])
-    last = None
+    boxes = list(boxes)
+
+    last_space = None  # (index_in_line, char_index)
+
     while boxes:
-        box = boxes[0]
-        boxes = boxes[1:]
-        if not len(box):
+        box = boxes.pop(0)
+        if not box or not len(box):
             continue
-        if w+box.width <= maxw:
-            l.append(box)
+
+        # passt komplett?
+        if w + box.width <= maxw:
+            line.append(box)
             w += box.width
+
             if isinstance(box, TextBox) and ' ' in box.text:
-                i = box.text.rindex(' ')+1
-                last = len(l)-1, i
+                last_space = (len(line) - 1, box.text.rindex(' ') + 1)
             continue
 
-        # start a new line
-        split_at_i = True
-        i = None
-        if wordwrap:
-            i = find_goodbreak(box, maxw-w)
-        else:
-            i = find_anybreak(box, maxw-w)
-        if i is None:
-            if last:
-                k, j = last
-                lastbox = l[k]
-                a, b = split_box(lastbox, j)
-                assert len(a)+len(b) == len(lastbox)
-                boxes = [b]+l[k+1:]+[box]+boxes
-                del l[k:]            
-                l.append(a)
-                split_at_i = False
-            else:
-                i = find_anybreak(box, maxw-w)
+        # Versuch innerhalb der Box zu brechen
+        avail = maxw - w
+        i = find_goodbreak(box, avail) if wordwrap else find_anybreak(box, avail)
 
-        if split_at_i:
-            if i == 0:
-                if len(l):
-                    boxes = [box]+boxes
-                else:
-                    l.append(box)
-            else:
-                a, b = split_box(box, i)
-                l.append(a)                    
-                boxes = [b]+boxes
-            
-        # start a new line
-        w = 0
-        l = []
-        rows.append(l)
-        last = None
-        
-    # Remove the last row, if it is empty. 
-    if not rows[-1]:
-        rows = rows[:-1]
-    return [Row(l, device) for l in rows]
+        # Rückgriff auf letztes Leerzeichen der Zeile
+        if i is None and last_space:
+            k, j = last_space
+            a, b = split_box(line[k], j)
+
+            boxes = [b] + line[k + 1:] + [box] + boxes
+            line = line[:k] + [a]
+            rows.append(Row(line, device))
+
+        else:
+            if i is None:
+                i = find_anybreak(box, avail)
+
+            a, b = split_box(box, i)
+            if i > 0:
+                line.append(a)
+            boxes = [b] + boxes if b else boxes
+            rows.append(Row(line, device))
+
+        # neue Zeile
+        line, w, last_space = [], 0, None
+
+    if line:
+        rows.append(Row(line, device))
+
+    return rows
+
 
 
 def test_00():
