@@ -41,7 +41,7 @@ def split_box(box, i):
     )
 
 
-def simple_linewrap(boxes, maxw, wordwrap=True, device=TESTDEVICE):
+def simple_linewrap(boxes, maxw, tabstops=(), wordwrap=True, device=TESTDEVICE):
     rows, line = [], []
     w = 0
     boxes = list(boxes)

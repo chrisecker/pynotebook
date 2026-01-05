@@ -85,7 +85,7 @@ def create_paragraphs(textboxes, maxw=0, wordwrap=True, Paragraph=Paragraph, \
         l.append(box)
         if isinstance(box, NewlineBox) or isinstance(box, EndBox):
             if maxw>0:
-                rows = simple_linewrap(l, maxw, wordwrap=wordwrap, tabstops=(), \
+                rows = simple_linewrap(l, maxw, wordwrap=wordwrap, \
                                        device=device)
             else:
                 rows = [Row(l, device)]
