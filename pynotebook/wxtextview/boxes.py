@@ -354,7 +354,6 @@ class TextBox(_TextBoxBase):
 class NewlineBox(_TextBoxBase):
     text = '\n'
     width = 0
-    weights = (0, 1)
     def __init__(self, style=EMPTYSTYLE, device=None):        
         self.style = style
         if device is not None:
@@ -377,7 +376,6 @@ class NewlineBox(_TextBoxBase):
 
 class TabulatorBox(_TextBoxBase):
     text = ' ' # XXX for now we treat tabs like spaces
-    weights = (0, 1) 
     def __init__(self, style=EMPTYSTYLE, device=None):        
         self.style = style
         if device is not None:
@@ -392,7 +390,6 @@ class TabulatorBox(_TextBoxBase):
 class EndBox(_TextBoxBase):
     text = chr(27)
     width = 0
-    weights = (0, 1)
     def __init__(self, style=EMPTYSTYLE, device=None):
         self.style = style
         if device is not None:
@@ -410,7 +407,6 @@ class EndBox(_TextBoxBase):
 class EmptyTextBox(_TextBoxBase):
     text = ""
     width = 0
-    weights = (0, 0)
     def __init__(self, style=EMPTYSTYLE, device=None):
         self.style = style
         if device is not None:
