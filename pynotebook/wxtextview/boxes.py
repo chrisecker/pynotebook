@@ -86,7 +86,7 @@ class Box:
         return SimpleGroupBox(l, device=self.device)
 
     def __len__(self):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def dump_boxes(self, i, x, y, indent=0):
         """Print out a graphical representation of the tree."""
@@ -603,6 +603,7 @@ def replace_boxes(box, i1, i2, stuff):
         elif i1 == len(box):
             return [box]+list(stuff)
     if i1<=0 and i2>=len(box):
+        # Replace evertyhing by stuff
         return stuff
 
     l = []
