@@ -243,7 +243,7 @@ def iter_d0(texel): # not needed, but might be useful in future
                 l.pop()
 
 
-def iter_leaves(texel): # not needed, but might be useful in future
+def iter_leafes(texel): # not needed, but might be useful in future
     """Iterate through all leaf-elements """
     l = [[texel]]
     i1 = 0
