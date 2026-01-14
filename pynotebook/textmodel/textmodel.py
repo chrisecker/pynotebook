@@ -99,6 +99,15 @@ class TextModel(Model):
         texel = self.texel
         return Group([texel, self.ENDMARK])
 
+    def _set_xtexel(self, xtexel):
+        """Sets self.texel and self.ENDMARK from xtexel."""
+        n = length(xtexel)-1
+        assert n>=0 # xtexel must contain ENDMARK, therefore
+                    # len(xtexel)>0
+        t, e = takeout(xtexel, n, n+1)
+        self.texel = grouped(t)
+        self.ENDMARK = grouped(e)
+
     def nlines(self):
         """Returns the number of lines."""
         return self.texel.weights[2]+1
@@ -214,26 +223,43 @@ class TextModel(Model):
         return memo
 
     def set_parproperties(self, i1, i2, **properties):
-        """Sets the paragraph properties between *i1* and *i2*."""
-        if not (0 <= i1 <= i2 <= len(self)):
+        """Sets the paragraph properties between *i1* and *i2*.
+
+        Note that i2 can include the endmark, so that i2 <= len(self)+1.
+        """
+        n = len(self)
+        if not (0 <= i1 <= i2 <= n+1):
             raise IndexError((i1, i2))
-        memo = get_parstyles(self.texel, i1, i2)
-        self.texel = grouped(
-            set_parproperties(self.texel, i1, i2, properties))
-        #assert check(self.texel)
-        self.notify_views('properties_changed', i1, i2)
+        texel = self.get_xtexel()
+        memo = get_parstyles(texel, i1, i2)
+        t = grouped(
+            set_parproperties(texel, i1, i2, properties))
+        self._set_xtexel(t)        
+        
+        # XXX This is controversial: should we restrict the change
+        # message to the range occupied by Texel or should we allow +1
+        # to signal ENDMARK-changes?
+        self.notify_views('properties_changed', i1, min(i2, n))
         return memo
 
     def set_parstyles(self, i, styles):
         """Sets the paragraph style of a span of text. Usually used by undo."""
-        if not (0 <= i <= len(self)):
+        if not (0 <= i <= len(self)+1):
             raise IndexError(i)
-        n = sum([entry[0] for entry in styles])
-        memo = get_parstyles(self.texel, i, i+n)
+        n = len(self)
+        m = sum([entry[0] for entry in styles])
+        texel = self.get_xtexel()
+        memo = get_parstyles(texel, i, i+m)
         iterator = StyleIterator(iter(styles))
-        self.texel = grouped(
-            set_parstyles(self.texel, i, iterator))
-        self.notify_views('properties_changed', i, i+n)
+
+        t = grouped(
+            set_parstyles(texel, i, iterator))
+        self._set_xtexel(t)        
+
+        # XXX This is controversial: should we restrict the change
+        # message to the range occupied by Texel or should we allow +1
+        # to signal ENDMARK-changes?
+        self.notify_views('properties_changed', i, min(i+m, n))        
         return memo
 
     def set_parstyle(self, i, style):
@@ -246,12 +272,13 @@ class TextModel(Model):
     def insert(self, i, text):
         """Inserts *text* at position *i*."""
         row, col = self.index2position(i)
-        n = length(self.texel) + length(text.texel)
+        n = length(text.texel)
+        m = length(self.texel)
         stuff = strip2list(text.texel)
         tmp = grouped(insert(self.texel, i, stuff))
         self.texel = tmp
-        assert length(self.texel) == n
-        self.notify_views('inserted', i, len(text))
+        assert length(self.texel) == m+n
+        self.notify_views('inserted', i, n)
 
     def append(self, text):
         """Appends textmodel *texel*."""
