@@ -6,11 +6,11 @@ from .boxes import TabulatorBox, TextBox, EmptyTextBox, NewlineBox, Row
 
 
 
-def find_goodbreak(box, maxw): # currently not used!
+def find_goodbreak(box, maxw):
     """Search good break position at or before maxw, returns None
-       (i.e. no good split position possible) otherwise. If the
-       box.width <= maxw, len(box) is returned.
-    """
+       (i.e. no good split position possible) otherwise. If 
+       box.width <= maxw then len(box) is returned.
+    """    
     if (not isinstance(box, TextBox)) or maxw <= 0:
         # no good split is possible
         return None
@@ -42,15 +42,14 @@ def find_goodbreak(box, maxw): # currently not used!
     
 def find_anybreak(box, maxw):
     """Search possible break position at or before maxw, returns None
-       otherwise.
-    """
+       otherwise."""
     if not isinstance(box, TextBox) or maxw <= 0:
         return None # not breakable
 
     parts = box.measure_parts(box.text)
     for i, part in enumerate(parts):
         if part > maxw:
-            return max(i, 1)  # mindestens 1 Zeichen
+            return max(i, 1)  # Minimum 1 char
     return len(parts)
 
 
@@ -67,7 +66,12 @@ def split_box(box, i):
 
 
 def simple_linewrap(boxes, maxw, tabstops=(), wordwrap=True, device=TESTDEVICE):
-    
+    """Break boxes into rows where each row does not exceed width
+    maxw.
+
+    if wordwrap is True (default), tries to break at spaces. Only if
+    no spaces are found, breaking in words is considered. 
+    """
     rows, line = [], []
     w = 0
     boxes = list(boxes)
@@ -79,7 +83,7 @@ def simple_linewrap(boxes, maxw, tabstops=(), wordwrap=True, device=TESTDEVICE):
         if not box or not len(box):
             continue
 
-        # passt komplett?
+        # Does box fit completely?
         if w + box.width <= maxw:
             line.append(box)
             w += box.width
@@ -88,36 +92,45 @@ def simple_linewrap(boxes, maxw, tabstops=(), wordwrap=True, device=TESTDEVICE):
                 last_space = (len(line) - 1, box.text.rindex(' ') + 1)
             continue
 
-        # Wir müssen brechen!
-        
-        if last_space:
-            # wir brechen an dem Space
-            k, j = last_space
-            a, b = split_box(line[k], j)
+        # Try to break box
+        avail = maxw - w
+        i = None
+        if wordwrap:
+            i = find_goodbreak(box, avail)
+            if i is None and last_space:
+                k, j = last_space
+                a, b = split_box(line[k], j)
 
-            boxes = [b] + line[k + 1:] + [box] + boxes
-            line = line[:k] + [a]
-            rows.append(Row(line, device))
+                boxes = [b] + line[k + 1:] + [box] + boxes
+                line = line[:k] + [a]
+                rows.append(Row(line, device))
+                line, w, last_space = [], 0, None
+                continue
+            
+        if i is None:
+            i = find_anybreak(box, avail)
+        if i is not None and i>0:
+            # break box
+            a, b = split_box(box, i)
+            if i > 0:
+                line.append(a)
+            boxes = [b] + boxes if b else boxes
         else:
-            # wir benutzen Gewalt
-            i = find_anybreak(box, maxw-w)
-            if i is None:
-                # box is unsplittable!
+            # box is unbreakable! Note that box is the first box which
+            # does not fit in and before it was ok. So we have two
+            # possible solutions: either break before box or break
+            # after box.
+            if w<=0:
+                # line is empty -> put box in this line
                 line.append(box)
             else:
-                a, b = split_box(box, i)
-                if i > 0:
-                    line.append(a)
-                if b:
-                    boxes = [b] + boxes
-            rows.append(Row(line, device))
-
-        # neue Zeile
+                # Line is not empty -> put box in next line
+                boxes = [box]+boxes
+        rows.append(Row(line, device))
         line, w, last_space = [], 0, None
 
     if line:
         rows.append(Row(line, device))
-
     return rows
 
 
@@ -140,18 +153,68 @@ def test_00():
 
 
 def test_01():
+    "simple_linewrap"
+
+    # wrapping at NL
     boxes = []
     for text in "aa bb cc dd ee".split():
         boxes.append(TextBox(text))
         if text == 'dd':
             boxes.append(NewlineBox())
-
     assert str(simple_linewrap(boxes, 5)) == \
         "[Row[TB('aa'), TB('bb'), TB('c')], Row[TB('c'), TB('dd'), NL, "\
         "TB('ee')]]"
 
+    # word wrapping
     boxes = []
     for text in "ff gg_hh ii jj".split('_'):
         boxes.append(TextBox(text))
+
+    assert str(simple_linewrap(boxes, 1)) == \
+        "[Row[TB('f')], Row[TB('f ')], Row[TB('g')], Row[TB('g')], " \
+        "Row[TB('h')], Row[TB('h ')], Row[TB('i')], Row[TB('i ')], " \
+        "Row[TB('j')], Row[TB('j')]]"
+    assert str(simple_linewrap(boxes, 4)) == \
+        "[Row[TB('ff ')], Row[TB('gg'), TB('hh ')], Row[TB('ii ')], Row[TB('jj')]]"
+    assert str(simple_linewrap(boxes, 2)) == \
+        "[Row[TB('ff ')], Row[TB('gg')], Row[TB('hh ')], Row[TB('ii ')], " \
+        "Row[TB('jj')]]" # emergency break between gg and hh
+    assert str(simple_linewrap(boxes, 3)) == \
+        "[Row[TB('ff ')], Row[TB('gg'), TB('h')], Row[TB('h ')], " \
+        "Row[TB('ii ')], Row[TB('jj')]]" # emergency break between h and h
     assert str(simple_linewrap(boxes, 5)) == \
         "[Row[TB('ff ')], Row[TB('gg'), TB('hh ')], Row[TB('ii jj')]]"
+    assert str(simple_linewrap(boxes, 7)) == \
+        "[Row[TB('ff gg'), TB('hh ')], Row[TB('ii jj')]]"
+    assert str(simple_linewrap(boxes, 8)) == \
+        "[Row[TB('ff gg'), TB('hh ')], Row[TB('ii jj')]]"
+    assert str(simple_linewrap(boxes, 9)) == \
+        "[Row[TB('ff gg'), TB('hh ')], Row[TB('ii jj')]]"
+    assert str(simple_linewrap(boxes, 10)) == \
+        "[Row[TB('ff gg'), TB('hh ii ')], Row[TB('jj')]]"
+    assert str(simple_linewrap(boxes, 11)) == \
+        "[Row[TB('ff gg'), TB('hh ii ')], Row[TB('jj')]]"
+    assert str(simple_linewrap(boxes, 12)) == \
+        "[Row[TB('ff gg'), TB('hh ii ')], Row[TB('jj')]]"
+    assert str(simple_linewrap(boxes, 13)) == \
+        "[Row[TB('ff gg'), TB('hh ii jj')]]"
+    
+    # hard wrapping
+    assert str(simple_linewrap(boxes, 5, wordwrap=False)) == \
+        "[Row[TB('ff gg')], Row[TB('hh ii')], Row[TB(' jj')]]"
+    assert str(simple_linewrap(boxes, 6, wordwrap=False)) == \
+        "[Row[TB('ff gg'), TB('h')], Row[TB('h ii j')], Row[TB('j')]]"
+
+
+def profile_00():
+    "breaking a long string"
+    import wx
+    from .wxdevice import WxDevice
+    app = wx.App(redirect=False)
+    frame = wx.Frame(None)
+    
+    device = WxDevice()
+    s = "123456789 " * 100
+    boxes = [TextBox(s, device=device)]
+    simple_linewrap(boxes, 100, tabstops=(), wordwrap=True,
+                    device=device)    
