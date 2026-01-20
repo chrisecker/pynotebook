@@ -1,7 +1,7 @@
 # -*- coding: latin-1 -*-
 
 import wx
-
+import time
 
 defaultstyle = dict(
     fontsize=10, bgcolor='white', textcolor='black', 
@@ -29,8 +29,10 @@ def invert_rect_INV(self, x, y, w, h, dc):
 
 def invert_rect_TRANSP(self, x, y, w, h, dc):
     # wx phoenix does not seem to support xor or invert. As an
-    # alternative we draw a semitransparent green Box above the rect.
-    brush = wx.Brush((0, 100, 0, 100), style=wx.BRUSHSTYLE_SOLID)
+    # alternative we draw a semitransparent blue Box above the rect.
+    #brush = wx.Brush((0, 0, 250, 50), style=wx.BRUSHSTYLE_SOLID)
+    brush = wx.Brush((83, 97, 220, 50), style=wx.BRUSHSTYLE_SOLID)
+    #brush = wx.Brush(wx.Colour(255, 255, 255, 80)) 
     dc.SetBrush(brush)
     dc.SetPen(wx.TRANSPARENT_PEN)
     dc.DrawRectangle(x, y, w, h)
@@ -150,6 +152,14 @@ class WxDevice:
 
     def draw_text(self, text, x, y, dc):
         dc.DrawText(text, x, y)
+
+    def draw_blinkingrect(self, x, y, w, h, dc):
+        if int(time.time()*2) % 2:
+            dc.SetBrush(wx.BLACK_BRUSH)
+        else:
+            dc.SetBrush(wx.LIGHT_GREY_BRUSH)            
+        dc.SetPen(wx.TRANSPARENT_PEN)
+        dc.DrawRectangle(x, y, w, h)
 
     if "msw" in wx.version():
         invert_rect = invert_rect_BLIT

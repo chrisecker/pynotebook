@@ -180,7 +180,7 @@ class Box:
         """Draws box and all child boxes at origin (x, y)."""
         device = self.device
         for j1, j2, x1, y1, child in self.iter_boxes(0, x, y):
-            r = Rect(int(x1), int(y1), int(x1+child.width), int(y1+child.height)) # XXX
+            r = Rect(x1, y1, x1+child.width, y1+child.height)
             if device.intersects(dc, r):
                 child.draw(x1, y1, dc, styler)
 
@@ -191,7 +191,7 @@ class Box:
         device = self.device
         for j1, j2, x1, y1, child in self.iter_boxes(0, x, y):
             if i1 < j2 and j1< i2:
-                r = Rect(int(x1), int(y1), int(x1+child.width), int(y1+child.height)) # XXX                
+                r = Rect(x1, y1, x1+child.width, y1+child.height)                
                 if device.intersects(dc, r):
                     child.draw_selection(i1-j1, i2-j1, x1, y1, dc)
 
@@ -202,7 +202,7 @@ class Box:
             child.draw_cursor(i-j, x1, y1, dc, style)
         else:
             r = self.get_cursorrect(i, x0, y0, style)
-            self.device.invert_rect(r.x1, r.y1, r.x2-r.x1, r.y2-r.y1, dc)
+            self.device.draw_blinkingrect(r.x1, r.y1, r.x2-r.x1, r.y2-r.y1, dc)
 
     def get_rect(self, i, x0, y0):
         """Returns the rectangle occupied by the Glyph at position $i$.
