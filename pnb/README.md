@@ -1,9 +1,10 @@
+
 pnb
 ====
 
 ![Screenshot](https://codeberg.org/chrisecker/pynotebook/raw/branch/master/screenshots/ball2.png)
 
-`More screenshots <https://codeberg.org/chrisecker/pynotebook/src/branch/master/screenshots/>`_
+[More screenshots](https://codeberg.org/chrisecker/pynotebook/src/branch/master/screenshots/)
 
 
 Introduction
@@ -37,14 +38,15 @@ Testing
 -------
 
 To start pnb without installing type:
-> python runtests.py pnb
+
+    python runtests.py pnb
 
 
 Links
 -----
-- `pynotebook module <https://pypi.python.org/pypi/pynotebook>`_
-- `R-Notebook <https://pypi.python.org/pypi/rnb>`_
-- `source code <https://codeberg.org/chrisecker/textmodel/tree/master/pynotebook>`_
+- [pynotebook module](https://pypi.python.org/pypi/pynotebook)
+- [R-Notebook](https://pypi.python.org/pypi/rnb)
+- [source code](https://codeberg.org/chrisecker/textmodel/tree/master/pynotebook)
 
 
 
