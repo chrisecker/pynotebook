@@ -1,8 +1,10 @@
+
 # pynotebook
 
-![Screenshot](https://raw.githubusercontent.com/chrisecker/textmodel/master/pynotebook/screenshots/ball2_small.png)
+![Screenshot](https://codeberg.org/chrisecker/pynotebook/raw/branch/master/screenshots/ball2.png)
 
-[More screenshots](https://github.com/chrisecker/textmodel/tree/master/pynotebook/screenshots)
+
+[More screenshots](https://codeberg.org/chrisecker/pynotebook/src/branch/master/screenshots/)
 
 ## Introduction
 
@@ -19,7 +21,32 @@ Applications using the Pynotebook library include:
 - [pnb application](https://pypi.python.org/pypi/pnb) – a Python notebook application  
 - [rnb](https://pypi.python.org/pypi/rnb) – an experimental notebook for the R programming language
 
+## Run demo (no installation)
+
+Running GUI:
+>  cd demo
+>  python plot_demo.py
+
+## Testing
+
+Most files have builtin tests. They can be started by:
+
+>  python runtests.py pynotebook/nbtexels.py
+  
+Some files also builtin demos:
+
+>  python runtests.py pynotebook/nbview.py demo_00
+
+
+## Installation
+pip install .
+
+or if you do not have the pip executable installed:
+
+python -m pip install .
+
 ## Links
 
-- [GitHub page](https://github.com/chrisecker/textmodel/tree/master/pynotebook)
+- [Sources on codeberg](https://codeberg.org/chrisecker/pynotebook)
+
 

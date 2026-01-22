@@ -2,9 +2,9 @@ pnb
 ====
 
 .. image::
-   https://raw.githubusercontent.com/chrisecker/textmodel/master/pynotebook/screenshots/ball2_small.png
+   https://codeberg.org/chrisecker/pynotebook/src/branch/master/screenshots/ball2.png
 
-`More screenshots <https://github.com/chrisecker/textmodel/tree/master/pynotebook/screenshots>`_
+`More screenshots <https://codeberg.org/chrisecker/pynotebook/src/branch/master/screenshots/>`_
 
 
 Introduction
@@ -34,11 +34,18 @@ Most notable features are:
 
 
 
+Testing
+-------
+
+To start pnb without installing type:
+> python runtests.py pnb
+
+
 Links
 -----
 - `pynotebook module <https://pypi.python.org/pypi/pynotebook>`_
 - `R-Notebook <https://pypi.python.org/pypi/rnb>`_
-- `github page <https://github.com/chrisecker/textmodel/tree/master/pynotebook>`_
+- `source code <https://codeberg.org/chrisecker/textmodel/tree/master/pynotebook>`_
 
 
 

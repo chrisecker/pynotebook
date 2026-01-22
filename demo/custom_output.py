@@ -19,7 +19,7 @@ def output(obj, iserr=False):
     if isinstance(obj, wx.Bitmap):
         im = obj.ConvertToImage()
         return __output__(
-            BitmapRGBA(im.GetData(), im.GetAlphaData(), 
+            BitmapRGBA(im.GetData(), im.GetAlpha(), 
             im.GetSize()), iserr)
         
     return __output__(obj, iserr)
