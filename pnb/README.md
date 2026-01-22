@@ -34,6 +34,21 @@ Most notable features are:
 
 
 
+Installation
+------------
+
+Installing the binary:
+
+    pip install .
+
+
+Desktop integration (on ubuntu):
+
+    mkdir -p ~/.local/share/applications
+    cp pnb.desktop ~/.local/share/applications/
+    cp pnb.png  ~/.local/share/icons/
+
+
 Testing
 -------
 

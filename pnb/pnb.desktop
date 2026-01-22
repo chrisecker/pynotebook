@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PNB
+Comment=Python Notebook
+Exec=/home/ecker/.env/bin/pnb
+Icon=/home/ecker/.local/share/icons/pnb.png
+Terminal=false
+Categories=Utility;Development;
+StartupWMClass=pnb_python_notebook
