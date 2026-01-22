@@ -8,6 +8,9 @@
 # TODO:
 # - Commandline arguments --silent, --redirect
 
+import faulthandler
+faulthandler.enable(all_threads=True)
+
 import sys
 sys.path.insert(0, "..")
 

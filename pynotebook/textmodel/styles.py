@@ -46,6 +46,14 @@ def updated_style(style, properties):
     return create_style(**new)
 
 
+def cleared_style(style, keys):
+    new = style.copy()
+    for key in keys:
+        if key in new:
+            del new[key]
+    return create_style(**new)
+
+
 def get_style(texel, i):
     if i < 0 or i >= length(texel):
         raise IndexError(i)
@@ -152,6 +160,14 @@ def set_properties(texel, i1, i2, properties):
     """Sets text properties in $i1$...$i2$."""
     l1 = get_styles(texel, i1, i2)
     l2 = [(n, updated_style(s, properties)) for n, s in l1]
+    return set_styles(texel, i1, StyleIterator(iter(l2)))
+
+
+
+def clear_properties(texel, i1, i2, keys):
+    """Removes text properties in $i1$...$i2$."""
+    l1 = get_styles(texel, i1, i2)
+    l2 = [(n, cleared_style(s, keys)) for n, s in l1]
     return set_styles(texel, i1, StyleIterator(iter(l2)))
 
 

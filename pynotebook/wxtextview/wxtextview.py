@@ -44,6 +44,7 @@ class WXTextView(wx.ScrolledWindow, TextView):
         self.timer = wx.Timer(self)
         self.timer.Start(500) # 2x per second
         self.Bind(wx.EVT_TIMER, self.on_blink)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self.on_destroy)
         
         # key = keycode, control, alt
         self.actions = {
@@ -92,6 +93,11 @@ class WXTextView(wx.ScrolledWindow, TextView):
     def on_blink(self, event):
         # We could limit the refresh area to the cursor rect.
         self.Refresh()
+
+    def on_destroy(self, event):
+        if self.timer.IsRunning():
+            self.timer.Stop()
+        event.Skip()        
 
     def on_focus(self, event):
         # focus changed

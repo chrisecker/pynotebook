@@ -2,9 +2,10 @@
 
 
 import pynotebook
+from pynotebook import graphics
 from pynotebook.nbtexels import NotFound
 from pynotebook.nbview import TextModel, NBView
-from pynotebook import graphics
+from pynotebook.inspector import TextCellInspector
 
 import sys
 import os
@@ -30,6 +31,7 @@ def method2cmd(label, name):
         fun()
     method.__doc__ = label
     return method
+
 
 
 
@@ -294,9 +296,7 @@ class MainWindow(wx.Frame):
 
     def inspector(self, event):
         "Format ...\tCtrl-F"
-        from pynotebook.inspector import Inspector
-        inspector = Inspector(self.shell.Parent)
-        inspector.model = self.shell
+        inspector = TextCellInspector(self.shell, self.shell.Parent)
         inspector.Show()
         inspector.update()
 

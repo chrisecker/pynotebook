@@ -6,7 +6,7 @@ from .texeltree import Text, Group, NewLine, Tabulator, insert, takeout, \
     is_list_efficient, is_root_efficient, strip2list, EMPTYSTYLE
 from .styles import updated_style, create_style, get_styles, set_styles, \
     get_style, set_properties, get_parstyles, set_parstyles, set_parproperties, \
-    StyleIterator
+    clear_properties, StyleIterator
 from .weights import find_weight, get_weight, NotFound
 from .modelbase import Model
 import re
@@ -209,6 +209,17 @@ class TextModel(Model):
         #assert check(self.texel)
         self.notify_views('properties_changed', i1, i2)
         return memo
+
+    def clear_properties(self, i1, i2, *keys):
+        """Unsets the text properties keys between *i1* and *i2*."""
+        if not (-1 <= i1 <= i2 <= len(self)):
+            raise IndexError((i1, i2))
+        memo = get_styles(self.texel, i1, i2)
+        self.texel = grouped(
+            clear_properties(self.texel, i1, i2, keys))
+        #assert check(self.texel)
+        self.notify_views('properties_changed', i1, i2)
+        return memo    
 
     def set_styles(self, i, styles):
         """Sets the styling of a span of text. Usually used by undo."""
