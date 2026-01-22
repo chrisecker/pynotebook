@@ -1,8 +1,7 @@
 pnb
 ====
 
-.. image::
-   https://codeberg.org/chrisecker/pynotebook/src/branch/master/screenshots/ball2.png
+![Screenshot](https://codeberg.org/chrisecker/pynotebook/raw/branch/master/screenshots/ball2.png)
 
 `More screenshots <https://codeberg.org/chrisecker/pynotebook/src/branch/master/screenshots/>`_
 

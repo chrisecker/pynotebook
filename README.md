@@ -1,7 +1,7 @@
 
 # pynotebook
 
-![Screenshot](https://codeberg.org/chrisecker/pynotebook/raw/branch/master/screenshots/ball2.png)
+![Screenshot](https://codeberg.org/chrisecker/pynotebook/raw/branch/master/screenshots/matplotlib.png)
 
 
 [More screenshots](https://codeberg.org/chrisecker/pynotebook/src/branch/master/screenshots/)
@@ -23,27 +23,26 @@ Applications using the Pynotebook library include:
 
 ## Run demo (no installation)
 
-Running GUI:
->  cd demo
->  python plot_demo.py
+    cd demo
+    python plot_demo.py
 
 ## Testing
 
 Most files have builtin tests. They can be started by:
 
->  python runtests.py pynotebook/nbtexels.py
+    python runtests.py pynotebook/nbtexels.py
   
-Some files also builtin demos:
+Some files also have builtin demos:
 
->  python runtests.py pynotebook/nbview.py demo_00
+    python runtests.py pynotebook/nbview.py demo_00
 
 
 ## Installation
-pip install .
+    pip install .
 
 or if you do not have the pip executable installed:
 
-python -m pip install .
+    python -m pip install .
 
 ## Links
 
