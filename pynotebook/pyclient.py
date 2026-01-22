@@ -179,9 +179,16 @@ def output(obj, iserr=False):
 def __transform__(obj, iserr):
     if has_classname(obj, "matplotlib.figure.Figure"):
         obj.canvas.draw()
-        data = obj.canvas.tostring_rgb()
-        size = obj.canvas.get_width_height()
-        return nbtexels.BitmapRGB(data, size)        
+        w, h = obj.canvas.get_width_height()
+        buf = obj.canvas.buffer_rgba()
+        import wx
+        bmp = wx.Bitmap.FromBufferRGBA(w, h, buf)
+        img = bmp.ConvertToImage()
+
+        data = img.GetData()
+        alpha = img.GetAlpha()
+
+        return nbtexels.BitmapRGBA(data, alpha, (w, h))        
     return obj
 
 """
