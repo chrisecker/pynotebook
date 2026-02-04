@@ -145,6 +145,7 @@ class NewLine(Single):
     weights = (0, 1, 1)
     style = EMPTYSTYLE
     parstyle = EMPTYSTYLE
+    indent = 0
     text = u'\n'
 
     def __repr__(self):
@@ -155,6 +156,11 @@ class NewLine(Single):
         clone.parstyle = style
         return clone
 
+    def set_indent(self, indent):
+        clone = shallow_copy(self)
+        clone.indent = indent
+        return clone
+        
     def __setstate__(self, state):
         if state is not None:
             self.__dict__ = state.copy()
@@ -224,43 +230,6 @@ def iter_childs(texel):
         i2 = i1+length(child)
         yield i1, i2, child
         i1 = i2    
-
-
-def iter_d0(texel): # not needed, but might be useful in future
-    """Iterate through all depth-zero elements. """
-    l = [[texel]]
-    i1 = 0
-    while l:
-        ll = l[-1]
-        elem = ll[0]
-        del ll[0]
-        if elem.is_group:
-            l.append(list(elem.childs))
-        else:
-            i2 = i1+length(elem)
-            yield i1, i2, elem
-            while l and not l[-1]:
-                l.pop()
-
-
-def iter_leafes(texel): # not needed, but might be useful in future
-    """Iterate through all leaf-elements """
-    l = [[texel]]
-    i1 = 0
-    while 1:
-        while l and not l[-1]:
-            l.pop()
-        if not l:
-            break
-        ll = l[-1]
-        elem = ll[0]
-        del ll[0]
-        if elem.is_group or elem.is_container:
-            l.append(list(elem.childs))
-        else:
-            i2 = i1+length(elem)
-            yield i1, i2, elem
-            i1 = i2
 
 
 def groups(l):
@@ -752,6 +721,50 @@ def get_text(texel):
     return u''.join([get_text(x) for x in texel.childs])
 
 
+def transform(texel, i1, i2, function, descend_containers=True):
+    """Applies a tranforming function to texel. Function must have
+    the signature function(Texel) -> Texel
+    """
+    if texel.is_group:
+        r1 = []; r2 = []; r3 = []
+        for j1, j2, child in iter_childs(texel):
+            if j2 <= i1:
+                r1.append(child)
+            elif j1 >= i2:
+                r3.append(child)
+            else:
+                r2 = fuse(r2, transform(child, i1-j1, i2-j1, function,
+                                        descend_containers))
+        return fuse(r1, r2, r3)
+    elif texel.is_single:
+        if i1 >= 1 or i2<=0:
+            return [texel]
+        new = function(texel)
+        return [new]
+    elif texel.is_text:
+        r = []
+        text = texel.text
+        n = len(text)
+        i1 = max(0, i1)
+        i2 = min(n, i2)
+        if i1:
+            r.append(T(text[:i1], texel.style))
+        if i2>i1:
+            r.append(function(T(text[i1:i2], texel.style)))
+        if i2<n:
+            r.append(T(text[i2:], texel.style))
+        return r
+    elif texel.is_container and descend_containers:
+        r1 = []; r2 = []; r3 = []
+        for j1, j2, child in iter_childs(texel):
+            if i1 < j2 and j1 < i2: # overlapp
+                r1.append(child)
+            else:
+                r2.append(grouped(function(child)))
+        return [texel.set_childs(r1+r2+r3)]
+    assert False
+
+
 # ---- Debug Tools ---
 
 def get_pieces(texel):
@@ -988,20 +1001,6 @@ def test_04():
     assert get_pieces(t) == ['0123456789']
 
 
-def test_05():
-    "iter_d0"
-    t1 = T("012345678")
-    t2 = T("ABC")
-    t3 = T("xyz")
-    c = Container().set_childs((t2, t3))
-    g = G((t1, c))
-    #texeltree.dump(g)
-    l = []
-    for i1, i2, elem in iter_d0(g):
-        l.append((i1, i2, elem))
-    assert repr(l) == "[(0, 9, T('012345678')), (0, 6, C([T('ABC'), T('xyz')]))]"
-    
-
 def test_06():
     "insert in container"
     fraction = Fraction(T("Sin(alpha)"), T("Cos(alpha)"))
@@ -1114,3 +1113,15 @@ def test_11():
     assert nl2.parstyle == dict(base='h2')
 
 
+def test_12():
+    "transform"
+    texel = G([T('1'), T('2', dict(color='red')), T('3')])
+    s = dict(size=13)
+    fun = lambda t: t.set_style(s)
+    t = grouped(transform(texel, 1, 3, fun))
+    assert str(t) == "G([T('1'), T('23')])"
+    t1, t2 = t.childs
+    assert t1.style == {}
+    assert t2.style == s
+
+    

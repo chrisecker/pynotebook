@@ -3,7 +3,8 @@
 from . import texeltree
 from .texeltree import G, T, length, grouped, provides_childs, iter_childs, \
     is_root_efficient, is_list_efficient, is_homogeneous, calc_length, \
-    get_pieces, fuse, EMPTYSTYLE, NL, NewLine, style_pool, hash_style
+    get_pieces, fuse, EMPTYSTYLE, NL, NewLine, style_pool, hash_style, \
+    transform
 
 
 debug = 0
@@ -95,7 +96,6 @@ def get_styles(texel, i1, i2):
             j2 = max(0, j2-n)
         return styles
     return [(i2-i1, texel.style)]
-
 
 
 

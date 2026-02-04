@@ -3,7 +3,9 @@
 
 from .texeltree import Text, Group, NewLine, Tabulator, insert, takeout, \
     ENDMARK, is_homogeneous, provides_childs, grouped, length, iter_childs, depth, \
-    is_list_efficient, is_root_efficient, strip2list, EMPTYSTYLE
+    is_list_efficient, is_root_efficient, strip2list, EMPTYSTYLE, transform, \
+    dump
+from .iterators import iter_newlines
 from .styles import updated_style, create_style, get_styles, set_styles, \
     get_style, set_properties, get_parstyles, set_parstyles, set_parproperties, \
     clear_properties, StyleIterator
@@ -279,7 +281,35 @@ class TextModel(Model):
         tmp = self.lineend(row)
         i2 = tmp+1
         return self.set_parstyles(i, [(i2-i, style)])
-    
+
+    def increase_indent(self, i1, i2):
+        indents = self.get_indents(i1, i2)
+        new = [min(9, i+1) for i in indents]        
+        return self.set_indents(i1, i2, new)
+
+    def decrease_indent(self, i1, i2):
+        indents = self.get_indents(i1, i2)
+        new = [max(0, i-1) for i in indents]
+        return self.set_indents(i1, i2, new)
+
+    def set_indents(self, i1, i2, indents):
+        def fun(texel, new=list(indents)):
+            if isinstance(texel, NewLine):
+                return texel.set_indent(new.pop(0))
+            return texel
+        texel = self.get_xtexel()
+        t = transform(texel, i1, i2, fun, descend_containers=False)
+        self._set_xtexel(grouped(t))
+
+    def get_indents(self, i1, i2):
+        texel = self.get_xtexel()
+        r = []
+        for j1, j2, texel in iter_newlines(texel, i1, descend_containers=False):
+            if j1>=i2:
+                break
+            r.append(texel.indent)
+        return r
+            
     def insert(self, i, text):
         """Inserts *text* at position *i*."""
         row, col = self.index2position(i)
@@ -419,7 +449,7 @@ def test_00():
         t = TextModel(text1)
         t.remove(i, i+1)
         if not isinstance(t.texel, Text):
-            t.texel.dump()
+            dump(t.texel)
         assert isinstance(t.texel, Text)
 
     for i in range(len(text1)):
@@ -660,7 +690,6 @@ def test_13():
     'ENDMARK'
     t = TextModel(text1+'\n'+text2)
     assert length(t.get_xtexel()) == length(t.texel)+1
-    #t.extended_texel().dump()
 
 def heavy_test():
     'pycolorize'
@@ -758,7 +787,6 @@ def test_17():
     "Tabulator"
     text = "line 1\nline 2\tcol 1\tcol2\n\n"
     model = TextModel(text)
-    #model.texel.dump()
     assert model.get_text() == text
 
 
@@ -774,5 +802,23 @@ def test_19():
     assert model.get_parstyle(1) == {}
     model.set_parproperties(0, len(model), textcolor='red')
     assert model.get_parstyle(1) == {'textcolor':'red'}
+
+    
+def test_20():
+    "indent"
+    model = TextModel(text1+'\n'+text2+'\n'+text3)
+    n = len(model)
+    assert model.get_indents(0, n) == [0, 0, 0, 0, 0, 0, 0]
+    model.increase_indent(0, n)
+    print(model.get_indents(0, len(model)))
+    assert model.get_indents(0, n) == [1, 1, 1, 1, 1, 1, 1]
+    dump(model.texel)
+    model.increase_indent(0, 38)
+    assert model.get_indents(0, n) == [2, 2, 1, 1, 1, 1, 1]
+    model.decrease_indent(0, n)
+    assert model.get_indents(0, n) == [1, 1, 0, 0, 0, 0, 0]
+    model.decrease_indent(0, n)
+    assert model.get_indents(0, n) == [0, 0, 0, 0, 0, 0, 0]
+    
 
 __all__ = ['TextModel']

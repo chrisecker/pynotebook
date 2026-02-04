@@ -5,7 +5,8 @@ from .textmodel import texeltree
 from .textmodel.textmodel import TextModel
 from .textmodel.styles import create_style, updated_style, EMPTYSTYLE
 from .textmodel.texeltree import Group, Text, groups, grouped, insert, \
-    length, get_text, join, get_rightmost, NULL_TEXEL, dump, iter_leafes
+    length, get_text, join, get_rightmost, NULL_TEXEL, dump
+from .textmodel.iterators import iter_leafes
 from .textmodel.properties import overridable_property
 from .wxtextview.boxes import Box, VGroup, VBox, Row, Rect, check_box, \
     NewlineBox, TextBox, TabulatorBox, extend_range_seperated, replace_boxes, \
@@ -470,7 +471,7 @@ def is_temp(model, i):
 
 def find_temp(tree):
     j1 = j2 = None
-    for i1, i2, texel in iter_leafes(tree):
+    for i1, i2, texel in iter_leafes(tree, 0, descend_containers=True):
         if texel.style.get('temp'):
             if j1 is None:
                 j1 = i1
