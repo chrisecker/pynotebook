@@ -35,285 +35,160 @@ def get_font(style):
         style['fontsize'], family, slant, weight,
         style['underline'], style['facename'])
 
-def get_font_scaled(style, factor):
-    # return font scale by factor
-    weight = {False : wx.FONTWEIGHT_NORMAL,
-              True : wx.FONTWEIGHT_BOLD}[style.get('bold', False)]
-    slant = {False : wx.FONTSTYLE_NORMAL,
-              True : wx.FONTSTYLE_ITALIC}[style.get('italic', False)]
-
-    family = dict(
-        roman = wx.FONTFAMILY_ROMAN,
-        modern = wx.FONTFAMILY_MODERN, 
-        swiss = wx.FONTFAMILY_SWISS,        
-    )[style.get('family', 'modern')]
-    return wx.Font(
-        style['fontsize']*factor, family, slant, weight,
-        style['underline'], style['facename'])
-
-
-# Profiling revelead that a lot of time is spent in the measure_*
-# functions. We therefore cache the results in a fixed size dict. This
-# reduces the time spent by ~90%.
-_cache = dict()
-_cache_keys = []
-
-
+PX_PER_PT = 96 / 72
+PT_PER_PX = 72 / 96
 
 class WxDevice:
-    PX_PER_PT = 96 / 72  # MemoryDC assumes 96 DPI
-    SCALE = 16
-    SCALE = 1 # Factor for subpixel accuracy
+    """
+    Device for rendering with wx.GraphicsContext in PT coordinates.
+    Works with gc.Scale() for zoom - all coordinates are in PT.
+    """
+    zoom = 1.0
     buffering = True
     def __init__(self):
-        # persistent MemoryDC
-        self._bmp = wx.Bitmap(1 * self.SCALE, 1 * self.SCALE)
-        self._dc = wx.MemoryDC(self._bmp)
-
         self._cache = {}
         self._cache_keys = []
         self._cache_max = 1000
+        # Temporary GC for measuring
+        self._temp_bmp = wx.Bitmap(1, 1)
+        self._temp_dc = wx.MemoryDC(self._temp_bmp)
+        self._temp_gc = wx.GraphicsContext.Create(self._temp_dc)
+        self._temp_gc.Scale(PT_PER_PX, PT_PER_PX)
 
-    def init_dc(self, dc):
-        pass
+    def create_gc(self, dc):
+        gc = wx.GraphicsContext.Create(dc)
+        gc.Scale(self.zoom, self.zoom)
+        return gc
+
+    def set_style(self, style, gc):
+        if hasattr(gc, 'last_style') and  style is gc.last_style:
+            return
+        gc.last_style = style
+
+        _style = filled(style)
+        wx_font = get_font(_style)
+        gc_font = gc.CreateFont(wx_font, wx.Colour(_style['textcolor']))
+        gc.SetFont(gc_font)
+        #gc.SetTextBackground(wx.Colour(_style['bgcolor']))
         
-    def intersects(self, dc, rect):
-        x1, y1, x2, y2 = rect.items()
-        r = wx.Rect(int(x1), int(y1), int(x2-x1), int(y2-y1))
-        return dc.ClippingRect.Intersects(r)
-
-    def draw_text(self, text, x, y, dc):
-        dc.DrawText(text, int(x), int(y))
-
-    def draw_blinkingrect(self, x, y, w, h, dc):
-        if int(time.time()*2) % 2:
-            dc.SetBrush(wx.BLACK_BRUSH)
-        else:
-            dc.SetBrush(wx.LIGHT_GREY_BRUSH)            
-        dc.SetPen(wx.TRANSPARENT_PEN)
-        dc.DrawRectangle(int(x), int(y), int(w), int(h))
-
-    def draw_rect(self, x, y, w, h, dc):
-        dc.SetBrush(wx.TRANSPARENT_BRUSH)
-        dc.SetPen(wx.BLACK_PEN)
-        dc.DrawRectangle(int(x), int(y), int(w), int(h))
-        
-    def measure(self, text, style):
+    def get_metrics(self, text, style):
         """
-        Measure text width/height in pt as float with subpixel accuracy
+        Measure text width/height, descent, external_leading  in PT as float.
         """
         key = (text, tuple(sorted(style.items())))
         try:
             return self._cache[key]
         except KeyError:
             pass
+            
         style_filled = filled(style)
-
         text_clean = text.replace("\n", " ")
-        font = get_font_scaled(style_filled, self.SCALE)
-        self._dc.SetFont(font)
-
-        # Measure in "high-resolution pixels"
-        w, h = self._dc.GetTextExtent(text_clean)
-
-        # Convert px -> pt
-        f = 1/self.SCALE
-
-        # Cache
-        r = f*w, f*h
-        self._cache[key] = r
+        
+        # Use GC for measuring
+        wx_font = get_font(style_filled)
+        gc_font = self._temp_gc.CreateFont(wx_font, wx.BLACK)
+        self._temp_gc.SetFont(gc_font)
+        
+        w, h, descent, external_leading = self._temp_gc. \
+            GetFullTextExtent(text_clean)
+        
+        result = (w, h, descent, external_leading)
+        self._cache[key] = result
         self._cache_keys.insert(0, key)
         if len(self._cache_keys) > self._cache_max:
             old_key = self._cache_keys.pop()
             del self._cache[old_key]
-        return r
+            
+        return result
+
+    def measure(self, text, style):
+        w, h, depth, leading = self.get_metrics(text, style)
+        return w, h-depth
     
     def measure_parts(self, text, style):
-        style = filled(style)
-        font = get_font_scaled(style, self.SCALE)
-        self._dc.SetFont(font)
-        f = 1/self.SCALE
-        l = self._dc.GetPartialTextExtents(text)
-        return [f*x for x in l]
-
-    def invert_rect(self, x, y, w, h, dc):
-        # wx phoenix does not seem to support xor or invert. As an
-        # alternative we draw a semitransparent blue Box above the rect.
-        #brush = wx.Brush((0, 0, 250, 50), style=wx.BRUSHSTYLE_SOLID)
-        brush = wx.Brush((83, 97, 220, 50), style=wx.BRUSHSTYLE_SOLID)
-        #brush = wx.Brush(wx.Colour(255, 255, 255, 80)) 
-        dc.SetBrush(brush)
-        dc.SetPen(wx.TRANSPARENT_PEN)
-        dc.DrawRectangle(int(x), int(y), int(w), int(h))
-
-    def set_style(self, style, dc):
-        if hasattr(dc, 'last_style') and  style is dc.last_style:
-            return
-        dc.last_style = style
-
-        _style = filled(style)
-        font = get_font(_style)
-        dc.SetFont(font)            
-        dc.SetTextBackground(wx.Colour(_style['bgcolor']))
-        dc.SetTextForeground(wx.Colour(_style['textcolor']))
+        """
+        Measure partial text extents in PT.
+        Returns list of cumulative widths for each character.
+        """
+        style_filled = filled(style)
+        wx_font = get_font(style_filled)
+        gc_font = self._temp_gc.CreateFont(wx_font, wx.BLACK)
+        self._temp_gc.SetFont(gc_font)
         
-
-
-# XXX nicht mehr gebraucht!
-class DCStyler:
-    last_style = None
-    def __init__(self, dc):
-        self.dc = dc
+        widths = []
+        cumulative = 0
+        for char in text:
+            w, h, descent, external_leading = self._temp_gc.GetFullTextExtent(char)
+            cumulative += w
+            widths.append(cumulative)
         
-    def set_style(self, style):
-        if style is self.last_style:
-            return
-        self.last_style = style
-
-        _style = filled(style)
-        font = get_font(_style)
-        self.dc.SetFont(font)            
-        try: # Phoenix
-            self.dc.SetTextBackground(wx.Colour(_style['bgcolor']))
-            self.dc.SetTextForeground(wx.Colour(_style['textcolor']))
-        except TypeError: # Classic
-            self.dc.SetTextBackground(wx.NamedColour(_style['bgcolor']))
-            self.dc.SetTextForeground(wx.NamedColour(_style['textcolor']))
-
-
-
-### The following functions are here for historic reasons. I assume
-### that they are not necessary anymore.
-
-def invert_rect_INV(self, x, y, w, h, dc):
-    if 1:
-        dc.SetLogicalFunction(wx.INVERT)
-        dc.SetBrush(wx.BLACK_BRUSH)
-        dc.SetPen(wx.TRANSPARENT_PEN)
-    else:
-        # Alternative which gives a light blue selection: 
-        dc.SetLogicalFunction(wx.XOR)
-        dc.SetBrush(wx.RED_BRUSH)
-    dc.DrawRectangle(int(x), int(y), int(w), int(h))
-
-
-            
-def invert_rect_BLIT(self, x, y, w, h, dc):
-    dc.Blit(x, y, w, h, dc, x, y, wx.SRC_INVERT)
-
-
-def measure_win(self, text, style):
-    key = text, tuple(style.items())
-    try:
-        return _cache[key]
-    except:
-        pass
-    style = filled(style)
-    font = get_font(style)
-    dc = wx.MemoryDC()
-    dc.SetFont(font)
-    w, h = dc.GetTextExtent(text)
-    _cache[key] = w, h
-    _cache_keys.insert(0, key)
-    if len(_cache_keys) > 1000:
-        _key = _cache_keys.pop()
-        del _cache[key]        
-    return w, h
-
-def measure_mac(self, text, style):
-    key = text, tuple(style.items())
-    try:
-        return _cache[key]
-    except:
-        pass
-    style = filled(style)
-    font = get_font(style)
-    gc = wx.GraphicsContext_CreateMeasuringContext()
-    gc.SetFont(font)
-    w, h = gc.GetTextExtent(text)
-    _cache[key] = w, h
-    _cache_keys.insert(0, key)
-    if len(_cache_keys) > 1000:
-        _key = _cache_keys.pop()
-        del _cache[key]        
-    return w, h
-
-def measure_gtk(self, text, style):
-    key = text, tuple(style.items())
-    try:
-        return _cache[key]
-    except:
-        pass
-    style = filled(style)
-    text = text.replace('\n', ' ') # replace newlines to avoid double lines
-    font = get_font(style)
-    # GC returns wrong font metric values in gtk! We therefore use the DC.  
-    dc = wx.MemoryDC()
-    dc.SetFont(font)
-    w, h = dc.GetTextExtent(text)
-    _cache[key] = w, h
-    _cache_keys.insert(0, key)
-    if len(_cache_keys) > 1000:
-        _key = _cache_keys.pop()
-        del _cache[key]        
-    return w, h
-
-
-def measure_parts_win(self, text, style):
-    style = filled(style)
-    font = get_font(style)
-    dc = wx.MemoryDC()
-    dc.SetFont(font)
-    return dc.GetPartialTextExtents(text)
-
-
-def measure_parts_gtk(self, text, style):
-    style = filled(style)
-    font = get_font(style)
-    dc = wx.MemoryDC()
-    dc.SetFont(font)
-    return dc.GetPartialTextExtents(text)
-
-
-def measure_parts_mac(self, text, style):
-    style = filled(style)
-    font = get_font(style)
-    gc = wx.GraphicsContext_CreateMeasuringContext()
-    gc.SetFont(font)
-    return gc.GetPartialTextExtents(text)
-
-
-
-def test_00():
-    def view(dc):
-        frame = wx.Frame(parent=None, title='Hello World')
-        frame.Show()
-        b = wx.Button(frame)           
-        bmp = dc.GetAsBitmap()
-        b.SetBitmap(bmp) 
-        app.MainLoop()
-
-    def prepare_dc():
-        dc = wx.MemoryDC()    
-        bmp = wx.Bitmap(100, 200)
-        dc.SelectObject(bmp)
-
-        b = wx.Brush(wx.Colour(255, 0, 0)) 
-        dc.SetBrush(b) 
-        dc.DrawCircle(100, 100, 50)
-        return dc
-        
-    import wx
-    app = wx.App()
-    device = WxDevice()
+        return widths
     
-    dc = prepare_dc()
-    device.invert_rect(10, 10, 80, 80, dc)
-    #view(dc)
+    def intersects(self, gc, rect):
+        """
+        Check if rect (in PT) intersects with current clipping region.
+        rect: dict-like with items() returning (x1, y1, x2, y2) in PT
+        """
+        x1, y1, x2, y2 = rect.items()
+        
+        clip_x, clip_y, clip_w, clip_h = gc.GetClipBox()
+        clip_x2 = clip_x + clip_w
+        clip_y2 = clip_y + clip_h
+        
+        return not (x2 < clip_x or x1 > clip_x2 or 
+                    y2 < clip_y or y1 > clip_y2)
+    
+    def draw_text(self, text, x, y, gc):
+        """
+        Draw text at position (x, y) in PT coordinates.
+        """
+        gc.DrawText(text, x, y)
+    
+    def draw_rect(self, x, y, w, h, gc):
+        """
+        Draw rectangle outline in PT coordinates.
+        """
+        pen = gc.CreatePen(wx.GraphicsPenInfo(wx.BLACK).Width(1))
+        gc.SetPen(pen)
+        gc.SetBrush(wx.TRANSPARENT_BRUSH)
+        
+        gc.DrawRectangle(x, y, w, h)
+    
+    def draw_blinkingrect(self, x, y, w, h, gc):
+        """
+        Draw blinking cursor rectangle in PT coordinates.
+        """
+        if int(time.time() * 2) % 2:
+            color = wx.BLACK
+        else:
+            color = wx.LIGHT_GREY
+            
+        brush = gc.CreateBrush(wx.Brush(color))
+        gc.SetBrush(brush)
+        gc.SetPen(wx.TRANSPARENT_PEN)
+        
+        gc.DrawRectangle(x, y, w, h)
+    
+    def invert_rect(self, x, y, w, h, gc):
+        """
+        Draw semi-transparent selection rectangle in PT coordinates.
+        """
+        color = wx.Colour(83, 97, 220, 50)
+        brush = gc.CreateBrush(wx.Brush(color))
+        gc.SetBrush(brush)
+        gc.SetPen(wx.TRANSPARENT_PEN)
+        
+        gc.DrawRectangle(x, y, w, h)
+    
+    def fill_rect(self, x, y, w, h, color, gc):
+        """
+        Fill rectangle with color in PT coordinates.
+        """
+        brush = gc.CreateBrush(wx.Brush(wx.Colour(color)))
+        gc.SetBrush(brush)
+        gc.SetPen(wx.TRANSPARENT_PEN)
+        
+        gc.DrawRectangle(x, y, w, h)
 
-    # just check that this does not give an exception
-    print(device.measure("asdasd", defaultstyle))
 
-    # just check that this does not give an exception
-    print(device.measure_parts("asdasd", defaultstyle))
-
+        

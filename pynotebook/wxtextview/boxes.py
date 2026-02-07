@@ -77,6 +77,7 @@ class Box:
     width = 0
     height = 0
     depth = 0
+    leading = 0
     device = TESTDEVICE
     is_group = False # we will use this as base class for groups and
                      # non groups
@@ -283,8 +284,9 @@ class _TextBoxBase(Box):
         return "TB(%s)" % repr(self.text)
 
     def layout(self):
-        self.width, h = self.measure(self.text)
-        self.height = h
+        self.width, h, self.depth, self.leading = self.device.\
+            get_metrics(self.text, self.style)
+        self.height = h-self.depth
 
     def measure(self, text):
         return self.device.measure(text, self.style)
@@ -494,14 +496,17 @@ class HBox(ChildBox):
             j1 = j2
 
     def layout(self):
-        w = h = d = 0
+        w = h = d = l= 0
         for child in self.childs:
             w += child.width
             h = max(h, child.height)
             d = max(d, child.depth)
+            l = max(l, child.leading)
+            
         self.width = w
         self.height = h
         self.depth = d
+        self.leading = l
         self.length = calc_length(self.childs)
 
     def get_index(self, x, y):
@@ -528,7 +533,8 @@ class VBox(ChildBox):
         for child in self.childs:
             j2 = j1+len(child)
             yield j1, j2, x, y, child
-            y += child.height+child.depth
+            y += child.height+child.depth+child.leading
+            # XXX leading should be added below and above!
             j1 = j2
 
     def get_index(self, x, y):

@@ -20,5 +20,10 @@ class TestDevice:
     def draw_text(self, text, x, y, dc):
         pass
 
+    def draw_rect(self, x, y, w, h, dc):
+        pass
+    
+    def draw_blinkingrect(self, x, y, w, h, dc):
+        pass
 
 TESTDEVICE = TestDevice()

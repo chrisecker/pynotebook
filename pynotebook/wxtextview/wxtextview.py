@@ -7,7 +7,7 @@ import string
 from ..textmodel import TextModel
 from ..textmodel.styles import updated_style
 from .textview import TextView
-from .wxdevice import WxDevice, defaultstyle, DCStyler
+from .wxdevice import WxDevice, defaultstyle
 from .testdevice import TESTDEVICE
 from .simplelayout import Builder
 
@@ -161,7 +161,7 @@ class WXTextView(wx.ScrolledWindow, TextView):
         region = self.GetUpdateRegion()
         x, y, w, h = region.Box
         dc.SetClippingRegion(x-1, y-1, w+2, h+2)
-        gc = device.init_dc(dc)
+        gc = device.create_gc(dc)
 
         x, y = self.CalcScrolledPosition((0,0)) 
         layout = self.layout
