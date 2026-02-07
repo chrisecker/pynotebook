@@ -8,7 +8,7 @@ from .texeltree import Text, Group, NewLine, Tabulator, insert, takeout, \
 from .iterators import iter_newlines
 from .styles import updated_style, create_style, get_styles, set_styles, \
     get_style, set_properties, get_parstyles, set_parstyles, set_parproperties, \
-    clear_properties, StyleIterator
+    clear_properties, clear_parproperties, StyleIterator
 from .weights import find_weight, get_weight, NotFound
 from .modelbase import Model
 import re
@@ -255,6 +255,18 @@ class TextModel(Model):
         self.notify_views('properties_changed', i1, min(i2, n))
         return memo
 
+    def clear_parproperties(self, i1, i2, *keys):
+        if not (-1 <= i1 <= i2 <= len(self)):
+            raise IndexError((i1, i2))
+        texel = self.get_xtexel()
+        memo = get_parstyles(texel, i1, i2)
+        t = grouped(
+            clear_parproperties(self.texel, i1, i2, keys))
+        self._set_xtexel(t)
+        #assert check(self.texel)
+        self.notify_views('properties_changed', i1, i2)
+        return memo    
+        
     def set_parstyles(self, i, styles):
         """Sets the paragraph style of a span of text. Usually used by undo."""
         if not (0 <= i <= len(self)+1):
@@ -300,6 +312,8 @@ class TextModel(Model):
         texel = self.get_xtexel()
         t = transform(texel, i1, i2, fun, descend_containers=False)
         self._set_xtexel(grouped(t))
+        self.notify_views('properties_changed', i1, i2)
+
 
     def get_indents(self, i1, i2):
         texel = self.get_xtexel()
@@ -802,6 +816,8 @@ def test_19():
     assert model.get_parstyle(1) == {}
     model.set_parproperties(0, len(model), textcolor='red')
     assert model.get_parstyle(1) == {'textcolor':'red'}
+    model.clear_parproperties(0, len(model), 'textcolor')
+    assert model.get_parstyle(1) == {}
 
     
 def test_20():
@@ -810,9 +826,7 @@ def test_20():
     n = len(model)
     assert model.get_indents(0, n) == [0, 0, 0, 0, 0, 0, 0]
     model.increase_indent(0, n)
-    print(model.get_indents(0, len(model)))
     assert model.get_indents(0, n) == [1, 1, 1, 1, 1, 1, 1]
-    dump(model.texel)
     model.increase_indent(0, 38)
     assert model.get_indents(0, n) == [2, 2, 1, 1, 1, 1, 1]
     model.decrease_indent(0, n)

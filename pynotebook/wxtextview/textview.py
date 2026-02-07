@@ -217,6 +217,11 @@ class TextView(ViewBase, Model):
         info = self._set_parstyles, i1, styles
         self.add_undo(info)
 
+    def clear_parproperties(self, i1, i2, *keys):
+        styles = self.model.clear_parproperties(i1, i2, *keys)
+        info = self._set_parstyles, i1, styles
+        self.add_undo(info)
+        
     def _set_parstyles(self, i, styles):
         styles = self.model.set_parstyles(i, styles)
         return self._set_parstyles, i, styles

@@ -251,6 +251,13 @@ def set_parproperties(texel, i1, i2, properties):
     return set_parstyles(texel, i1, StyleIterator(iter(l2)))
 
 
+def clear_parproperties(texel, i1, i2, keys):
+    """Removes text properties in $i1$...$i2$."""
+    l1 = get_parstyles(texel, i1, i2)
+    l2 = [(n, cleared_style(s, keys)) for n, s in l1]
+    return set_parstyles(texel, i1, StyleIterator(iter(l2)))
+
+
 # -- debug --
 
 def style_length(styles):
