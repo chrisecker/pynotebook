@@ -148,7 +148,8 @@ class WXTextView(wx.ScrolledWindow, TextView):
 
         pdc = wx.PaintDC(self)
         pdc.SetAxisOrientation(True, False)
-        if self.builder.get_device().buffering:
+        device = self.builder.get_device()
+        if device.buffering:
             dc = wx.BufferedDC(pdc)
             if not dc.IsOk():
                 return
@@ -157,21 +158,19 @@ class WXTextView(wx.ScrolledWindow, TextView):
         dc.SetBackgroundMode(wx.SOLID)
         dc.SetBackground(wx.WHITE_BRUSH)
         dc.Clear()
-        styler = DCStyler(dc)
-        
         region = self.GetUpdateRegion()
         x, y, w, h = region.Box
         dc.SetClippingRegion(x-1, y-1, w+2, h+2)
+        gc = device.init_dc(dc)
 
         x, y = self.CalcScrolledPosition((0,0)) 
         layout = self.layout
-        layout.draw(x, y, dc, styler)
+        layout.draw(x, y, gc)
         
         if wx.Window.FindFocus() is self:
-            layout.draw_cursor(self.index, x, y, dc, self.model.defaultstyle)            
+            layout.draw_cursor(self.index, x, y, gc, self.model.defaultstyle)            
         for j1, j2 in self.get_selected():
-            layout.draw_selection(j1, j2, x, y, dc)
-        styler = None
+            layout.draw_selection(j1, j2, x, y, gc)
         dc = None
 
     def on_size(self, event):
@@ -201,7 +200,7 @@ class WXTextView(wx.ScrolledWindow, TextView):
     ### Scroll
     def _update_scroll(self):
         layout = self.layout
-        self.SetVirtualSize((layout.width, layout.height))
+        self.SetVirtualSize((int(layout.width), int(layout.height)))
         self._scrollrate = 10, 10
         self.SetScrollRate(*self._scrollrate)
         

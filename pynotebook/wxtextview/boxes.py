@@ -3,7 +3,6 @@
 from ..textmodel.texeltree import EMPTYSTYLE
 from .testdevice import TESTDEVICE
 from .rect import Rect
-from math import ceil
 
 
 # Coordinates:
@@ -176,13 +175,13 @@ class Box:
         print(j1, j2, i, child, child.can_leftappend())
         raise Exception(self, i, len(self))
 
-    def draw(self, x, y, dc, styler):
+    def draw(self, x, y, dc):
         """Draws box and all child boxes at origin (x, y)."""
         device = self.device
         for j1, j2, x1, y1, child in self.iter_boxes(0, x, y):
             r = Rect(x1, y1, x1+child.width, y1+child.height)
             if device.intersects(dc, r):
-                child.draw(x1, y1, dc, styler)
+                child.draw(x1, y1, dc)
 
     def draw_selection(self, i1, i2, x, y, dc):
         """Draws box as selected, where the selection extends from $i1$ to
@@ -191,7 +190,7 @@ class Box:
         device = self.device
         for j1, j2, x1, y1, child in self.iter_boxes(0, x, y):
             if i1 < j2 and j1< i2:
-                r = Rect(x1, y1, x1+child.width, y1+child.height)                
+                r = Rect(x1, y1, x1+child.width, y1+child.height)         
                 if device.intersects(dc, r):
                     child.draw_selection(i1-j1, i2-j1, x1, y1, dc)
 
@@ -285,7 +284,7 @@ class _TextBoxBase(Box):
 
     def layout(self):
         self.width, h = self.measure(self.text)
-        self.height = int(ceil(h))        
+        self.height = h
 
     def measure(self, text):
         return self.device.measure(text, self.style)
@@ -304,8 +303,8 @@ class _TextBoxBase(Box):
         x1 = x0+self.measure(self.text[:i])[0]
         return self, i, x1, y0
 
-    def draw(self, x, y, dc, styler):
-        styler.set_style(self.style)
+    def draw(self, x, y, dc):
+        self.device.set_style(self.style, dc)
         self.device.draw_text(self.text, x, y, dc)
 
     def draw_selection(self, i1, i2, x, y, dc):
@@ -362,7 +361,7 @@ class NewlineBox(_TextBoxBase):
 
     def layout(self):
         w, h = self.measure(self.text)
-        self.height = int(ceil(h))
+        self.height = h
 
     def __repr__(self):
         return 'NL'
@@ -388,7 +387,7 @@ class TabulatorBox(_TextBoxBase):
 
 
 class EndBox(_TextBoxBase):
-    text = chr(27)
+    text = ' ' #chr(27)
     width = 0
     def __init__(self, style=EMPTYSTYLE, device=None):
         self.style = style
@@ -401,7 +400,7 @@ class EndBox(_TextBoxBase):
 
     def layout(self):
         w, h = self.measure(self.text)
-        self.height = int(ceil(h))
+        self.height = h
 
 
 class EmptyTextBox(_TextBoxBase):
@@ -415,7 +414,7 @@ class EmptyTextBox(_TextBoxBase):
 
     def layout(self):
         w, h = self.measure('M')
-        self.height = int(ceil(h))
+        self.height = h
 
     def __repr__(self):
         return 'ETB'
@@ -439,7 +438,7 @@ def extend_range_seperated(box, i1, i2):
 
 
 class ChildBox(Box):
-    # Baseclass many boxes which are used to layout their content in a
+    # Baseclass for many boxes which are used to layout their content in a
     # certain way (e.g. HBox, VBox, HGroup, ...). It is assumed, that
     # boxes are dense, i.e. there is no gap between child
     # boxes. Further it is necessary that childboxes can be grouped.
