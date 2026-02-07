@@ -29,7 +29,6 @@ def find_goodbreak(box, maxw):
     i = 0
     for word in text.split(' '):
         w = measure(word)[0]
-
         if width+w <= maxw:
             i += len(word)+1
             width += w+ws
@@ -65,13 +64,15 @@ def split_box(box, i):
     )
 
 
-def simple_linewrap(boxes, maxw, tabstops=(), wordwrap=True, device=TESTDEVICE):
+def simple_linewrap(boxes, maxw, maxw2=None, wordwrap=True):
     """Break boxes into rows where each row does not exceed width
     maxw.
 
     if wordwrap is True (default), tries to break at spaces. Only if
     no spaces are found, breaking in words is considered. 
     """
+    if maxw2 is None:
+        maxw2 = maxw
     rows, line = [], []
     w = 0
     boxes = list(boxes)
@@ -103,7 +104,8 @@ def simple_linewrap(boxes, maxw, tabstops=(), wordwrap=True, device=TESTDEVICE):
 
                 boxes = [b] + line[k + 1:] + [box] + boxes
                 line = line[:k] + [a]
-                rows.append(Row(line, device))
+                rows.append(line)
+                maxw = maxw2
                 line, w, last_space = [], 0, None
                 continue
             
@@ -126,11 +128,12 @@ def simple_linewrap(boxes, maxw, tabstops=(), wordwrap=True, device=TESTDEVICE):
             else:
                 # Line is not empty -> put box in next line
                 boxes = [box]+boxes
-        rows.append(Row(line, device))
+        rows.append(line)
         line, w, last_space = [], 0, None
+        maxw = maxw2
 
     if line:
-        rows.append(Row(line, device))
+        rows.append(line)
     return rows
 
 
@@ -155,6 +158,15 @@ def test_00():
 def test_01():
     "simple_linewrap"
 
+    # maxw and maxw2
+    boxes = []
+    for text in "aa bb cc dd ee".split():
+        boxes.append(TextBox(text))
+    print(str(simple_linewrap(boxes, 5, 3)))
+    assert str(simple_linewrap(boxes, 5, 3)) == \
+        "[[TB('aa'), TB('bb'), TB('c')], [TB('c'), TB('dd')], " \
+        "[TB('ee')]]"
+    
     # wrapping at NL
     boxes = []
     for text in "aa bb cc dd ee".split():
@@ -162,48 +174,50 @@ def test_01():
         if text == 'dd':
             boxes.append(NewlineBox())
     assert str(simple_linewrap(boxes, 5)) == \
-        "[Row[TB('aa'), TB('bb'), TB('c')], Row[TB('c'), TB('dd'), NL, "\
+        "[[TB('aa'), TB('bb'), TB('c')], [TB('c'), TB('dd'), NL, "\
         "TB('ee')]]"
-
+    
     # word wrapping
     boxes = []
     for text in "ff gg_hh ii jj".split('_'):
         boxes.append(TextBox(text))
 
     assert str(simple_linewrap(boxes, 1)) == \
-        "[Row[TB('f')], Row[TB('f ')], Row[TB('g')], Row[TB('g')], " \
-        "Row[TB('h')], Row[TB('h ')], Row[TB('i')], Row[TB('i ')], " \
-        "Row[TB('j')], Row[TB('j')]]"
+        "[[TB('f')], [TB('f ')], [TB('g')], [TB('g')], " \
+        "[TB('h')], [TB('h ')], [TB('i')], [TB('i ')], " \
+        "[TB('j')], [TB('j')]]"
     assert str(simple_linewrap(boxes, 4)) == \
-        "[Row[TB('ff ')], Row[TB('gg'), TB('hh ')], Row[TB('ii ')], Row[TB('jj')]]"
+        "[[TB('ff ')], [TB('gg'), TB('hh ')], [TB('ii ')], [TB('jj')]]"
     assert str(simple_linewrap(boxes, 2)) == \
-        "[Row[TB('ff ')], Row[TB('gg')], Row[TB('hh ')], Row[TB('ii ')], " \
-        "Row[TB('jj')]]" # emergency break between gg and hh
+        "[[TB('ff ')], [TB('gg')], [TB('hh ')], [TB('ii ')], " \
+        "[TB('jj')]]" # emergency break between gg and hh
     assert str(simple_linewrap(boxes, 3)) == \
-        "[Row[TB('ff ')], Row[TB('gg'), TB('h')], Row[TB('h ')], " \
-        "Row[TB('ii ')], Row[TB('jj')]]" # emergency break between h and h
+        "[[TB('ff ')], [TB('gg'), TB('h')], [TB('h ')], " \
+        "[TB('ii ')], [TB('jj')]]" # emergency break between h and h
     assert str(simple_linewrap(boxes, 5)) == \
-        "[Row[TB('ff ')], Row[TB('gg'), TB('hh ')], Row[TB('ii jj')]]"
+        "[[TB('ff ')], [TB('gg'), TB('hh ')], [TB('ii jj')]]"
     assert str(simple_linewrap(boxes, 7)) == \
-        "[Row[TB('ff gg'), TB('hh ')], Row[TB('ii jj')]]"
+        "[[TB('ff gg'), TB('hh ')], [TB('ii jj')]]"
     assert str(simple_linewrap(boxes, 8)) == \
-        "[Row[TB('ff gg'), TB('hh ')], Row[TB('ii jj')]]"
+        "[[TB('ff gg'), TB('hh ')], [TB('ii jj')]]"
     assert str(simple_linewrap(boxes, 9)) == \
-        "[Row[TB('ff gg'), TB('hh ')], Row[TB('ii jj')]]"
+        "[[TB('ff gg'), TB('hh ')], [TB('ii jj')]]"
     assert str(simple_linewrap(boxes, 10)) == \
-        "[Row[TB('ff gg'), TB('hh ii ')], Row[TB('jj')]]"
+        "[[TB('ff gg'), TB('hh ii ')], [TB('jj')]]"
     assert str(simple_linewrap(boxes, 11)) == \
-        "[Row[TB('ff gg'), TB('hh ii ')], Row[TB('jj')]]"
+        "[[TB('ff gg'), TB('hh ii ')], [TB('jj')]]"
     assert str(simple_linewrap(boxes, 12)) == \
-        "[Row[TB('ff gg'), TB('hh ii ')], Row[TB('jj')]]"
+        "[[TB('ff gg'), TB('hh ii ')], [TB('jj')]]"
     assert str(simple_linewrap(boxes, 13)) == \
-        "[Row[TB('ff gg'), TB('hh ii jj')]]"
+        "[[TB('ff gg'), TB('hh ii jj')]]"
     
     # hard wrapping
     assert str(simple_linewrap(boxes, 5, wordwrap=False)) == \
-        "[Row[TB('ff gg')], Row[TB('hh ii')], Row[TB(' jj')]]"
+        "[[TB('ff gg')], [TB('hh ii')], [TB(' jj')]]"
     assert str(simple_linewrap(boxes, 6, wordwrap=False)) == \
-        "[Row[TB('ff gg'), TB('h')], Row[TB('h ii j')], Row[TB('j')]]"
+        "[[TB('ff gg'), TB('h')], [TB('h ii j')], [TB('j')]]"
+
+    
 
 
 def profile_00():
@@ -216,5 +230,4 @@ def profile_00():
     device = WxDevice()
     s = "123456789 " * 100
     boxes = [TextBox(s, device=device)]
-    simple_linewrap(boxes, 100, tabstops=(), wordwrap=True,
-                    device=device)    
+    simple_linewrap(boxes, 100, tabstops=(), wordwrap=True)    
