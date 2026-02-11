@@ -1,8 +1,8 @@
 # -*- coding: latin-1 -*-
 
-# WxDevice provides a lightweight abstraction layer that keeps
-# wx-specific code isolated from the rest of the codebase. All pixel
-# coordinates are based on an assumed 96 DPI.
+# WxDevice provides a lightweight abstraction layer that keeps device
+# and application specific code isolated from the rest of the
+# codebase. All pixel coordinates are based on an assumed 96 DPI.
 
 
 import wx
@@ -35,8 +35,6 @@ def get_font(style):
         style['fontsize'], family, slant, weight,
         style['underline'], style['facename'])
 
-PX_PER_PT = 96 / 72
-PT_PER_PX = 72 / 96
 
 class WxDevice:
     """
@@ -53,12 +51,15 @@ class WxDevice:
         self._temp_bmp = wx.Bitmap(1, 1)
         self._temp_dc = wx.MemoryDC(self._temp_bmp)
         self._temp_gc = wx.GraphicsContext.Create(self._temp_dc)
-        self._temp_gc.Scale(PT_PER_PX, PT_PER_PX)
+        self.reset_blink()
 
     def create_gc(self, dc):
         gc = wx.GraphicsContext.Create(dc)
         gc.Scale(self.zoom, self.zoom)
         return gc
+
+    def reset_blink(self):
+        self._blink_reference_time = time.time()        
 
     def set_style(self, style, gc):
         if hasattr(gc, 'last_style') and  style is gc.last_style:
@@ -71,7 +72,7 @@ class WxDevice:
         gc.SetFont(gc_font)
         #gc.SetTextBackground(wx.Colour(_style['bgcolor']))
         
-    def get_metrics(self, text, style):
+    def measure(self, text, style):
         """
         Measure text width/height, descent, external_leading  in PT as float.
         """
@@ -82,28 +83,21 @@ class WxDevice:
             pass
             
         style_filled = filled(style)
-        text_clean = text.replace("\n", " ")
         
-        # Use GC for measuring
         wx_font = get_font(style_filled)
         gc_font = self._temp_gc.CreateFont(wx_font, wx.BLACK)
         self._temp_gc.SetFont(gc_font)
         
-        w, h, descent, external_leading = self._temp_gc. \
-            GetFullTextExtent(text_clean)
-        
-        result = (w, h, descent, external_leading)
+        w, htot, depth, external_leading = self._temp_gc. \
+            GetFullTextExtent(text)
+
+        result = (w, htot-depth, depth)
         self._cache[key] = result
         self._cache_keys.insert(0, key)
         if len(self._cache_keys) > self._cache_max:
             old_key = self._cache_keys.pop()
-            del self._cache[old_key]
-            
+            del self._cache[old_key]            
         return result
-
-    def measure(self, text, style):
-        w, h, depth, leading = self.get_metrics(text, style)
-        return w, h-depth
     
     def measure_parts(self, text, style):
         """
@@ -113,16 +107,8 @@ class WxDevice:
         style_filled = filled(style)
         wx_font = get_font(style_filled)
         gc_font = self._temp_gc.CreateFont(wx_font, wx.BLACK)
-        self._temp_gc.SetFont(gc_font)
-        
-        widths = []
-        cumulative = 0
-        for char in text:
-            w, h, descent, external_leading = self._temp_gc.GetFullTextExtent(char)
-            cumulative += w
-            widths.append(cumulative)
-        
-        return widths
+        self._temp_gc.SetFont(gc_font)        
+        return self._temp_gc.GetPartialTextExtents(text)
     
     def intersects(self, gc, rect):
         """
@@ -150,23 +136,21 @@ class WxDevice:
         """
         pen = gc.CreatePen(wx.GraphicsPenInfo(wx.BLACK).Width(1))
         gc.SetPen(pen)
-        gc.SetBrush(wx.TRANSPARENT_BRUSH)
-        
+        gc.SetBrush(wx.TRANSPARENT_BRUSH)        
         gc.DrawRectangle(x, y, w, h)
     
     def draw_blinkingrect(self, x, y, w, h, gc):
         """
         Draw blinking cursor rectangle in PT coordinates.
         """
-        if int(time.time() * 2) % 2:
+        if not int((time.time()-self._blink_reference_time) * 2) % 2:
             color = wx.BLACK
         else:
             color = wx.LIGHT_GREY
             
         brush = gc.CreateBrush(wx.Brush(color))
         gc.SetBrush(brush)
-        gc.SetPen(wx.TRANSPARENT_PEN)
-        
+        gc.SetPen(wx.TRANSPARENT_PEN)        
         gc.DrawRectangle(x, y, w, h)
     
     def invert_rect(self, x, y, w, h, gc):
@@ -176,8 +160,7 @@ class WxDevice:
         color = wx.Colour(83, 97, 220, 50)
         brush = gc.CreateBrush(wx.Brush(color))
         gc.SetBrush(brush)
-        gc.SetPen(wx.TRANSPARENT_PEN)
-        
+        gc.SetPen(wx.TRANSPARENT_PEN)        
         gc.DrawRectangle(x, y, w, h)
     
     def fill_rect(self, x, y, w, h, color, gc):
@@ -186,8 +169,7 @@ class WxDevice:
         """
         brush = gc.CreateBrush(wx.Brush(wx.Colour(color)))
         gc.SetBrush(brush)
-        gc.SetPen(wx.TRANSPARENT_PEN)
-        
+        gc.SetPen(wx.TRANSPARENT_PEN)        
         gc.DrawRectangle(x, y, w, h)
 
 

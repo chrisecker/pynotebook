@@ -77,7 +77,6 @@ class Box:
     width = 0
     height = 0
     depth = 0
-    leading = 0
     device = TESTDEVICE
     is_group = False # we will use this as base class for groups and
                      # non groups
@@ -222,9 +221,12 @@ class Box:
         if child is not None:
             return child.get_cursorrect(i-j, x, y, style)
         else:
-            m = self.device.measure('M', style)[1]
+            w, h, d = self.device.measure('M', style)
+            yb = y0+self.height
             x1, y1, x2, y2 = list(self.get_rect(i, x0, y0).items())
-            return Rect(x1, y2-m, x1+2, y2)
+            return Rect(x1, yb-h, x1+1, yb+d)
+            
+            
 
     def get_index(self, x, y):
         """Returns the index which is closest to point (x, y). A return value
@@ -284,9 +286,8 @@ class _TextBoxBase(Box):
         return "TB(%s)" % repr(self.text)
 
     def layout(self):
-        self.width, h, self.depth, self.leading = self.device.\
-            get_metrics(self.text, self.style)
-        self.height = h-self.depth
+        self.width, self.height, self.depth = self.device.\
+            measure(self.text, self.style)
 
     def measure(self, text):
         return self.device.measure(text, self.style)
@@ -315,7 +316,7 @@ class _TextBoxBase(Box):
         i2 = min(len(self.text), i2)
         x1 = x+measure(self.text[:i1])[0]
         x2 = x+measure(self.text[:i2])[0]
-        self.device.invert_rect(x1, y, x2-x1, self.height, dc)
+        self.device.invert_rect(x1, y, x2-x1, self.height+self.depth, dc)
 
     def get_rect(self, i, x0, y0):
         text = self.text
@@ -323,7 +324,8 @@ class _TextBoxBase(Box):
         i = min(len(text), i)
         x1 = self.measure(text[:i])[0]
         x2 = self.measure((text+'m')[:i+1])[0]
-        return Rect(x0+x1, y0, x0+x2, y0+self.height)
+        #print(self.height, self.depth)
+        return Rect(x0+x1, y0, x0+x2, y0+self.height+self.depth)
 
     def get_index(self, x, y):
         if x<= 0:
@@ -362,7 +364,7 @@ class NewlineBox(_TextBoxBase):
         self.layout()
 
     def layout(self):
-        w, h = self.measure(self.text)
+        w, h, d = self.measure(self.text)
         self.height = h
 
     def __repr__(self):
@@ -401,7 +403,7 @@ class EndBox(_TextBoxBase):
         return 'ENDBOX'
 
     def layout(self):
-        w, h = self.measure(self.text)
+        w, h, d = self.measure(self.text)
         self.height = h
 
 
@@ -415,7 +417,7 @@ class EmptyTextBox(_TextBoxBase):
         self.layout()
 
     def layout(self):
-        w, h = self.measure('M')
+        w, h, d = self.measure('M')
         self.height = h
 
     def __repr__(self):
@@ -501,12 +503,10 @@ class HBox(ChildBox):
             w += child.width
             h = max(h, child.height)
             d = max(d, child.depth)
-            l = max(l, child.leading)
             
         self.width = w
         self.height = h
         self.depth = d
-        self.leading = l
         self.length = calc_length(self.childs)
 
     def get_index(self, x, y):
@@ -533,8 +533,7 @@ class VBox(ChildBox):
         for child in self.childs:
             j2 = j1+len(child)
             yield j1, j2, x, y, child
-            y += child.height+child.depth+child.leading
-            # XXX leading should be added below and above!
+            y += child.height+child.depth
             j1 = j2
 
     def get_index(self, x, y):
@@ -771,3 +770,20 @@ def test_04():
     l = replace_boxes(g2, 0, 0, [t3])
     assert get_alltext(l) == 'xyz'
 
+
+def test_05():
+    "get_cursorrect"
+    t = TextBox('0123456789')
+    r = t.get_cursorrect(0, 0, 0, {})
+    assert r.items() == (0, 0, 2, 1)
+
+    from .wxdevice import WxDevice
+    import wx
+    app = wx.App()
+    device = WxDevice()
+    t = TextBox('0123456789', device=device)
+    r = t.get_cursorrect(1, 0, 0, {})
+    x1, y1, x2, y2 = r.items()
+    assert y2-y1 == t.height+t.depth
+
+    

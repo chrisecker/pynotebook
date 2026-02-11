@@ -6,6 +6,7 @@ import string
 
 from ..textmodel import TextModel
 from ..textmodel.styles import updated_style
+from ..textmodel.viewbase import overridable_property
 from .textview import TextView
 from .wxdevice import WxDevice, defaultstyle
 from .testdevice import TESTDEVICE
@@ -20,6 +21,7 @@ import pickle
 
 class WXTextView(wx.ScrolledWindow, TextView):
     _scrollrate = 10, 10
+    zoom = overridable_property('zoom')
 
     def __init__(self, parent, id=-1,  
                  pos=wx.DefaultPosition, size=wx.DefaultSize, style=0):
@@ -163,7 +165,10 @@ class WXTextView(wx.ScrolledWindow, TextView):
         dc.SetClippingRegion(x-1, y-1, w+2, h+2)
         gc = device.create_gc(dc)
 
-        x, y = self.CalcScrolledPosition((0,0)) 
+        zoom = self.zoom
+        x, y = self.CalcScrolledPosition((0,0))
+        x /= zoom
+        y /= zoom
         layout = self.layout
         layout.draw(x, y, gc)
         
@@ -172,6 +177,7 @@ class WXTextView(wx.ScrolledWindow, TextView):
         for j1, j2 in self.get_selected():
             layout.draw_selection(j1, j2, x, y, gc)
         dc = None
+        gc = None
 
     def on_size(self, event):
         self.keep_cursor_on_screen()
@@ -180,59 +186,85 @@ class WXTextView(wx.ScrolledWindow, TextView):
         if not event.LeftIsDown():
             return event.Skip()
         x, y = self.CalcUnscrolledPosition(event.Position) 
-        i = self.layout.get_index(x, y)
+        zoom = self.zoom
+        i = self.layout.get_index(x/zoom, y/zoom)
         if i is not None:
             self.set_index(i, extend=True)
 
     def on_leftdown(self, event):
         x, y = self.CalcUnscrolledPosition(event.Position) 
-        i = self.compute_index(x, y)
+        zoom = self.zoom
+        i = self.compute_index(x/zoom, y/zoom)
         if i is not None:
             self.set_index(i, extend=event.ShiftDown())
         self.SetFocus()
 
     def on_leftdclick(self, event):
         # Mark word
-        x, y = self.CalcUnscrolledPosition(event.Position) 
-        self.select_word(x, y)
+        x, y = self.CalcUnscrolledPosition(event.Position)
+        zoom = self.zoom
+        self.select_word(x/zoom, y/zoom)
         self.SetFocus()
 
     ### Scroll
     def _update_scroll(self):
         layout = self.layout
-        self.SetVirtualSize((int(layout.width), int(layout.height)))
+        zoom = self.zoom
+        self.SetVirtualSize((int(layout.width*zoom), int(layout.height*zoom)))
         self._scrollrate = 10, 10
         self.SetScrollRate(*self._scrollrate)
         
     def adjust_viewport(self):
-        # Adjust view so that the cursor is visible
         layout = self.layout
+        zoom = self.zoom
+
         r = layout.get_rect(self.index, 0, 0)
+
+        # curosr in device coordinates
+        x1 = r.x1 * zoom
+        y1 = r.y1 * zoom
+        x2 = r.x2 * zoom
+        y2 = r.y2 * zoom
+
         fw, fh = self._scrollrate
 
         width, height = self.GetClientSize()
-        firstcol, firstrow = self.GetViewStart() # -> Scroll in Inc-steps
-        x = firstcol*fw
-        y = firstrow*fh
-        if r.y1 <= y: 
-            # If r is below and above the viewport, we prefer to scroll up
-            y = r.y1
-            firstrow = int(y/fh)
-        elif r.y2 > y+height:
-            y = r.y2-height
-            firstrow = ceil(y/float(fh))
-        if r.x1 <= x:
-            x = r.x1
-            firstcol = int(x/fw)
-        elif r.x2 > x+width:
-            x = r.x2-width
-            firstcol = ceil(x/float(fw))
+        firstcol, firstrow = self.GetViewStart()
+
+        # current viewport in pixels
+        vx = firstcol * fw
+        vy = firstrow * fh
+
+        # check vertically
+        if y1 <= vy:
+            vy = y1
+            firstrow = int(vy / fh)
+        elif y2 > vy + height:
+            vy = y2 - height
+            firstrow = ceil(vy / float(fh))
+
+        # check horizontally
+        if x1 <= vx:
+            vx = x1
+            firstcol = int(vx / fw)
+        elif x2 > vx + width:
+            vx = x2 - width
+            firstcol = ceil(vx / float(fh))
+
         if (firstcol, firstrow) != self.GetViewStart():
-            self.Update() # important update first!
+            self.Update()
             self.Scroll(firstcol, firstrow)
 
+            
     def keep_cursor_on_screen(self):
         pass # not implemented
+
+    def get_zoom(self):
+        return self.builder.get_device().zoom
+        
+    def set_zoom(self, zoom):
+        self.builder.get_device().zoom = zoom
+        self.refresh()
         
         
         

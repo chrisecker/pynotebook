@@ -88,7 +88,7 @@ class Frame(ChildBox):
                     l.append(j1+len(child)-1) # This is needed for rows
         return self._select_index(l, x, y)
 
-    def draw(self, x, y, dc, styler):
+    def draw(self, x, y, dc):
         device = self.device
         dc.SetBrush(wx.Brush(self.fillcolor, wx.SOLID))
         dc.SetPen(wx.Pen(self.linecolor, style=wx.SOLID))
@@ -97,18 +97,18 @@ class Frame(ChildBox):
         for j1, j2, x1, y1, child in self.iter_boxes(0, x, y):
             r = Rect(x1, y1, x1+child.width, y1+child.height)
             if device.intersects(dc, r):
-                child.draw(x1, y1, dc, styler)
+                child.draw(x1, y1, dc)
 
 
 
-def draw_bracket(x, y, h, dc):
-    dc.SetPen(wx.Pen(wx.Colour("darkblue"), int(1*scalefactor+0.5)))
-    dc.DrawLines([
-        (x+10, y),
-        (x+6, y),
-        (x+6, y+h-8),
-        (x+10, y+h-8),
-    ])
+def draw_bracket(x, y, h, gc):
+    gc.SetPen(wx.Pen(wx.Colour("darkblue"), int(1*scalefactor+0.5)))
+    path = gc.CreatePath()
+    path.MoveToPoint(x+10, y)
+    path.AddLineToPoint(x+6, y)
+    path.AddLineToPoint(x+6, y+h-8)
+    path.AddLineToPoint(x+10, y+h-8)
+    gc.StrokePath(path)
         
 
 
@@ -190,9 +190,9 @@ class TextCellBox(VBox):
         h = self.height
         return Rect(x0, y0+h, sepwidth, y0+h+2)
 
-    def draw(self, x, y, dc, styler):
+    def draw(self, x, y, dc):
         draw_bracket(x, y, self.height, dc)
-        VBox.draw(self, x, y, dc, styler)
+        VBox.draw(self, x, y, dc)
 
 
 
@@ -266,15 +266,15 @@ class ScriptingCellBox(VBox):
                 return min(i1, 0), max(i2, len(self))
         return extend_range_seperated(self, i1, i2)
 
-    def draw(self, x, y, dc, styler):
+    def draw(self, x, y, dc):
         draw_bracket(x, y, self.height, dc)
         a, b = list(self.iter_boxes(0, x, y))
-        promptstyle = self.promptstyle
-        styler.set_style(promptstyle)
+        style = self.promptstyle
+        self.device.set_style(style, dc)
         
         n = self.number or ''
-        w1 = self.device.measure('Out', promptstyle)[0]
-        w2 = self.device.measure('Out [%s]:' % n, promptstyle)[0]
+        w1 = self.device.measure('Out', style)[0]
+        w2 = self.device.measure('Out [%s]:' % n, style)[0]
 
         border = self.border
         x1 = x+wleft-w2
@@ -288,7 +288,7 @@ class ScriptingCellBox(VBox):
             dc.DrawText("Out", x1, y2)
             dc.DrawText("[%s]:" % n, x2, y2)
 
-        VBox.draw(self, x, y, dc, styler)
+        VBox.draw(self, x, y, dc)
 
 
     def draw_selection(self, i1, i2, x, y, dc):
@@ -342,7 +342,7 @@ class BitmapBox(Box):
     def iter_boxes(self, i, x, y):
         if 0: yield 0,0,0
 
-    def draw(self, x, y, dc, styler):
+    def draw(self, x, y, dc):
         dc.DrawBitmap(self.bitmap, x, y, useMask=False)
 
     def get_index(self, x, y):
@@ -385,7 +385,7 @@ class GraphicsBox(Box):
     def iter_boxes(self, i, x, y):
         if 0: yield 0,0,0
 
-    def draw(self, x, y, dc, styler):
+    def draw(self, x, y, dc):
         gc = wx.GraphicsContext.Create(dc)
         gc.Clip(x, y, self.width, self.height)
         gc.Translate(x, y)
@@ -1322,7 +1322,10 @@ def test_12():
     return ns
 
 
-def test_13():
+def dontrun_test_13():
+    "matplotlib"
+    # this test is renamed so that it is not automatically called by
+    # the testrunner. Matplotlib complains at exit.
     ns = init_testing(True)
     model = ns['model']
     model.remove(0, len(model))
@@ -1427,7 +1430,7 @@ def demo_00():
 
 def demo_01():
     from .wxtextview import testing
-    ns = test_13()
+    ns = dontrun_test_13()
     testing.pyshell(ns)
     ns['app'].MainLoop()
 

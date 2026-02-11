@@ -5,8 +5,11 @@ class TestDevice:
     # graphics methods.
 
     buffering = False
+    def reset_blink(self):
+        pass
+    
     def measure(self, text, style):
-        return len(text), 1 # Dummy for testing
+        return len(text), 1, 0 # Dummy for testing
 
     def measure_parts(self, text, style):
         return tuple(range(1, len(text)+1)) # Dummy for testing
