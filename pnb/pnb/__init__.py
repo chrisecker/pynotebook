@@ -50,7 +50,7 @@ class MainWindow(wx.Frame):
     def __init__(self, filename=None):
         displayw, displayh = wx.GetDisplaySize()
         wx.Frame.__init__(self, None, 
-                          size=(min(635, displayw), min(800, displayh)))
+                          size=(min(680, displayw), min(800, displayh)))
         icon = logo.GetIcon()
         self.SetIcon(icon)
         panel = wx.Panel(self, -1)
@@ -67,6 +67,8 @@ class MainWindow(wx.Frame):
         sb = wx.StatusBar(self)
         self.SetStatusBar(sb)
         self.Bind(wx.EVT_IDLE, self.update)
+        self.SetName("pnb_python_notebook")
+
      
     def make_menubar(self):
         menubar = wx.MenuBar()
