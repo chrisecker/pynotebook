@@ -364,8 +364,9 @@ class NewlineBox(_TextBoxBase):
         self.layout()
 
     def layout(self):
-        w, h, d = self.measure(self.text)
+        w, h, d = self.measure('M')
         self.height = h
+        self.depth = d
 
     def __repr__(self):
         return 'NL'
@@ -403,8 +404,9 @@ class EndBox(_TextBoxBase):
         return 'ENDBOX'
 
     def layout(self):
-        w, h, d = self.measure(self.text)
+        w, h, d = self.measure('M')
         self.height = h
+        self.depth = d
 
 
 class EmptyTextBox(_TextBoxBase):
@@ -775,7 +777,7 @@ def test_05():
     "get_cursorrect"
     t = TextBox('0123456789')
     r = t.get_cursorrect(0, 0, 0, {})
-    assert r.items() == (0, 0, 2, 1)
+    assert r.items() == (0, 0, 1, 1)
 
     from .wxdevice import WxDevice
     import wx
