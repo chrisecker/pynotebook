@@ -93,7 +93,7 @@ class Inspector(wx.Frame, ViewBase):
         self.Bind(wx.EVT_WINDOW_DESTROY, self.on_destroy)
         
         framesizer = wx.BoxSizer( wx.VERTICAL )
-        panel = wx.Panel(self)
+        panel = self.panel = wx.Panel(self)
         panel.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_BTNFACE))
         self.SetBackgroundColour(panel.BackgroundColour)
         
@@ -176,9 +176,9 @@ class Inspector(wx.Frame, ViewBase):
             wx.EVT_CHECKBOX,
             lambda e:self.set_properties(italic=self.italic.GetValue()))
 
-        button = wx.Button(panel, -1, "Clear")
-        button.Bind(wx.EVT_BUTTON, self.on_clear)
-        contentsizer.Add( button, 0, wx.ALL, 5 )
+        #button = wx.Button(panel, -1, "Clear")
+        #button.Bind(wx.EVT_BUTTON, self.on_clear)
+        #contentsizer.Add( button, 0, wx.ALL, 5 )
 
         panelsizer.Add(contentsizer, 1, wx.ALL|wx.EXPAND, 5)
         panel.SetSizer(panelsizer )
@@ -342,7 +342,7 @@ class TextCellInspector(Inspector):
             cell = None
         is_textcell = isinstance(cell, TextCell)
         Inspector.update(self)
-        self.Enable(is_textcell)
+        self.panel.Enable(is_textcell)
 
 
         
