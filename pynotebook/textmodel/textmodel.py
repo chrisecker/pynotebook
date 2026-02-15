@@ -303,6 +303,18 @@ class TextModel(Model):
         indents = self.get_indents(i1, i2)
         new = [max(0, i-1) for i in indents]
         return self.set_indents(i1, i2, new)
+    
+    def get_indent(self, i):
+        row, col = self.index2position(i)
+        j = self.lineend(row)
+        texel = _get_texel(self.get_xtexel(), j)
+        return texel.indent
+
+    def set_indent(self, i, indent):
+        row, col = self.index2position(i)
+        tmp = self.lineend(row)
+        i2 = tmp+1
+        return self.set_indents(i, i2, [indent])
 
     def set_indents(self, i1, i2, indents):
         def fun(texel, new=list(indents)):
@@ -313,7 +325,6 @@ class TextModel(Model):
         t = transform(texel, i1, i2, fun, descend_containers=False)
         self._set_xtexel(grouped(t))
         self.notify_views('properties_changed', i1, i2)
-
 
     def get_indents(self, i1, i2):
         texel = self.get_xtexel()

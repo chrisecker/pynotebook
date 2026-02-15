@@ -436,6 +436,8 @@ class TextView(ViewBase, Model):
         elif action == 'insert_newline':
            tmp = self._TextModel('\n', **style)
            tmp.set_parstyle(0, parstyle)
+           indent = model.get_indent(index)
+           tmp.set_indent(0, indent)
            self.insert(index, tmp)            
         elif action == 'insert_newline_indented':
             i = model.linestart(row)
