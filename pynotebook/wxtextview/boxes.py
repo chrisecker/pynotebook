@@ -25,6 +25,57 @@ def calc_length(l):
     return sum([len(x) for x in l])
 
 
+def select_i_by_x(x, y, items):
+    """Select an index position using x. Items is an interable of
+    items as returned by iter_boxes.
+        
+    It is assumed that items do not overlapp and completely fill the
+    available space.
+    """
+    l = list(items)
+    l.sort(key =lambda item: -item[2]) # sort by x decreasing
+    for i1, i2, x_, y_, box in l:
+        if x_<=x:
+            return box.get_index(x-x_, y-y_)+i1
+    # if x is left of the first element, we return 0.
+    return 0
+
+
+def select_i_by_y(x, y, items):
+    l = list(items)
+    l.sort(key=lambda item: -item[3]) # sort by y decreasing
+    for i1, i2, x_, y_, box in l:
+        if y_<=y:
+            return box.get_index(x-x_, y-y_)+i1
+    # if y is above the first element, we return 0.
+    return 0
+    
+
+def select_i_by_xy(x, y, items):
+    """Select a box from the given list of items which contains x,
+    y. Returns None otherwise.
+
+    This function can be used when child boxes are not space filling.
+    """
+    l = list(items)
+    l.sort(key=lambda item: (-item[3], -item[2])) # sort primarily by
+                                                  # y and then by x
+    for i1, i2, x_, y_, box in l:
+        if x_<=x<=x_+box.width:
+            if y_<=y<=y_+box.height+box.depth:
+                return box.get_index(x-x_, y-y_)+i1
+    # if (x,y) does not lie in one of the boxes, return None.
+    return
+
+
+def find_text_pos(x, text, style, device):
+    """Find the last i for which width(text[:i]) <= x."""
+    for i, w in enumerate(device.measure_parts(text, style)):
+        if w>x:
+            return i
+    return len(text)
+
+
 def groups(l):
     """Transform the list of boxes *l* into a list of groups.
     """
@@ -226,20 +277,17 @@ class Box:
             x1, y1, x2, y2 = list(self.get_rect(i, x0, y0).items())
             return Rect(x1, yb-h, x1+1, yb+d)
             
-            
-
     def get_index(self, x, y):
         """Returns the index which is closest to point (x, y). A return value
         of None means: no matching index position found!
-        """
-        l = [0 ,len(self)]
-        for j1, j2, x1, y1, child in self.riter_boxes(0, 0, 0):
-            if x1 <= x <= x1+child.width and \
-                    y1 <= y <= y1+child.height+child.depth:
-                i = child.get_index(x-x1, y-y1)
-                if i is not None:
-                    l.append(i+j1)
-        return self._select_index(l, x, y)
+        """        
+        # We assume the general case here of boxes which are not space
+        # filling. Override if something else is needed.
+        items = self.iter_boxes(0, 0, 0)
+        r = select_i_by_xy(x, y, items)        
+        if r is None:
+            # None of the childs contains xy!
+            return 0
 
     def _select_index(self, l, x, y):# XXX as Function
         r = []
@@ -328,20 +376,7 @@ class _TextBoxBase(Box):
         return Rect(x0+x1, y0, x0+x2, y0+self.height+self.depth)
 
     def get_index(self, x, y):
-        if x<= 0:
-            return 0
-        measure = self.measure
-        x1 = 0
-        for i, char in enumerate(self.text):
-            x2 = x1+measure(char)[0]
-            if x1 <= x and x <= x2:
-                if x-x1 < x2-x:
-                    assert i <= len(self) # XXX
-                    return i
-                assert i+1 <= len(self)
-                return i+1
-            x1 = x2
-        return len(self)
+        return find_text_pos(x, self.text, self.style, self.device)
 
 
 
@@ -376,6 +411,10 @@ class NewlineBox(_TextBoxBase):
         # make sense for newlines. The last position of a line is the
         # index of the NL-Glyph, i.e. o.
         return 0
+
+    def draw(self, x, y, dc):
+        pass
+    
     
 
 class TabulatorBox(_TextBoxBase):
@@ -421,6 +460,7 @@ class EmptyTextBox(_TextBoxBase):
     def layout(self):
         w, h, d = self.measure('M')
         self.height = h
+        self.depth = d
 
     def __repr__(self):
         return 'ETB'
@@ -510,18 +550,12 @@ class HBox(ChildBox):
         self.height = h
         self.depth = d
         self.length = calc_length(self.childs)
-
+        
     def get_index(self, x, y):
-        l = [0, len(self)]
-        for j1, j2, x1, y1, child in self.riter_boxes(0, 0, 0):
-            if x1 <= x <= x1+child.width:
-                i = child.get_index(x-x1, y-y1)
-                if i is not None:
-                    l.append(i+j1)
-                    if len(child):
-                        l.append(j1+len(child))
-                        l.append(j1+len(child)-1) # This is needed for rows
-        return self._select_index(l, x, y)
+        items = self.iter_boxes(0, 0, 0)
+        # select_i_by_x assumes space filling childs and therefore
+        # always returns a number.
+        return select_i_by_x(x, y, items)        
 
 
 class Row(HBox):
@@ -539,17 +573,10 @@ class VBox(ChildBox):
             j1 = j2
 
     def get_index(self, x, y):
-        l = [0, len(self)]
-        for j1, j2, x1, y1, child in self.riter_boxes(0, 0, 0):
-            if y1 <= y <= y1+child.height+child.depth:
-                l.append(j1)
-                i = child.get_index(x-x1, y-y1)
-                if i is not None:
-                    l.append(i+j1)
-                if len(child):
-                    l.append(j1+len(child))
-                    l.append(j1+len(child)-1) # This is needed for rows
-        return self._select_index(l, x, y)
+        items = self.iter_boxes(0, 0, 0)
+        # select_i_by_y assumes space filling childs and therefore
+        # always returns a number.
+        return select_i_by_y(x, y, items)        
 
 
 
@@ -789,3 +816,67 @@ def test_05():
     assert y2-y1 == t.height+t.depth
 
     
+def test_06():
+    "get_index"
+    from .wxdevice import WxDevice
+    import wx
+    app = wx.App(redirect=False)
+    device = WxDevice()
+    t1 = TextBox('Ein männlicher Briefmark erlebte', device=device)
+    t2 = TextBox('Was Schönes, bevor er klebte.', device=device)
+    par = VBox([t1, t2])
+    assert par.height == t1.height+t1.depth+t2.height
+    assert par.depth == t2.depth
+    assert par.width == max(t1.width, t2.width)
+
+    assert t2.width < t1.width
+
+    x = t1.width
+    n1 = len(t1)
+    n2 = len(t2)
+    assert t1.get_index(x, 0) == n1
+    assert t2.get_index(x, 0) == n2
+    assert par.get_index(x, 0) == n1
+    assert par.get_index(x, -1) == 0 # XXX besser: len(t1)?
+    assert par.get_index(x, t1.height+t1.depth-1) == n1
+    assert par.get_index(x, t1.height+t1.depth) == n1+n2
+
+    x = -1
+    assert t1.get_index(x, 0) == 0
+    assert par.get_index(x, 0) == 0
+    
+    x = 0.5*t1.width
+    i = t1.get_index(x, 1)
+    assert i>0
+    y = 0
+    while y<t1.height+t1.depth:
+        assert t1.get_index(x, y) == i
+        y += 0.5
+
+    # Assure that indices are dense, i.e. there is no y value for
+    # which get_index returns the beginning of the row.
+    j = t2.get_index(x, 1)+n1
+    y = 0
+    while y<t2.height+t2.depth:
+        if y<t1.height+t1.depth:            
+            assert par.get_index(x, y) == i
+        else:
+            assert par.get_index(x, y) == j            
+        y += 0.1
+        
+    assert t1.get_index(x, 0) > 0
+    assert t1.get_index(x, 1) > 0
+    assert t1.get_index(x, t1.height) > 0
+
+    select_i_by_xy(1, 1, par.iter_boxes(0,0,0))
+
+
+def test_07():
+    "find_text_pos"
+    text = "0123456789"
+    n = len(text)
+    device = TESTDEVICE
+    assert find_text_pos(-1, text, {}, device) == 0
+    assert find_text_pos(0, text, {}, device) == 0
+    assert find_text_pos(1, text, {}, device) == 1
+    assert find_text_pos(100, text, {}, device) == n
