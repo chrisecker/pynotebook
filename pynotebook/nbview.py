@@ -687,15 +687,7 @@ class Builder(BuilderBase):
             # draws the caret. Might be a bug!??
             self._layout = vgroup
 
-    ### Signal handlers
-    def properties_changed(self, i1, i2):
-        self.rebuild()
-
-    def inserted(self, i, n):
-        self.rebuild()
-
-    def removed(self, i, n):
-        #print "removed", i, n
+    def rebuild_range(self, i1, i2, delta):
         self.rebuild()
 
 
