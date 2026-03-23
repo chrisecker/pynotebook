@@ -19,7 +19,6 @@ Although Python is the native language for Pynotebook, it is also possible to cr
 Applications using the Pynotebook library include:
 
 - [pnb application](https://pypi.python.org/pypi/pnb) – a Python notebook application  
-- [rnb](https://pypi.python.org/pypi/rnb) – an experimental notebook for the R programming language
 
 ## Run demo (no installation)
 
@@ -43,6 +42,9 @@ Some files also have builtin demos:
 or if you do not have the pip executable installed:
 
     python -m pip install .
+
+If you also want to install pnb:
+    pip install pnb/
 
 ## Links
 
