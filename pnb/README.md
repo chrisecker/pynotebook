@@ -27,7 +27,7 @@ Most notable features are:
 
 - syntax highlighting
 - command completion (tab-key)
-- introspection (F1-key)
+- object introspection (ctrl-h)
 - built-in vector graphics
 - plotting via matplotlib
 - BSD-license
@@ -60,7 +60,6 @@ To start pnb without installing type:
 Links
 -----
 - [pynotebook module](https://pypi.python.org/pypi/pynotebook)
-- [R-Notebook](https://pypi.python.org/pypi/rnb)
 - [source code](https://codeberg.org/chrisecker/textmodel/tree/master/pynotebook)
 
 
