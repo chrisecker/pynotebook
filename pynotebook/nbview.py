@@ -377,7 +377,8 @@ class GraphicsBox(Box):
         if 0: yield 0,0,0
 
     def draw(self, x, y, dc):
-        gc = wx.GraphicsContext.Create(dc)
+        gc = dc
+        gc.PushState()
         gc.Clip(x, y, self.width, self.height)
         gc.Translate(x, y)
         pen = wx.Pen(colour='black', style=wx.USER_DASH)
@@ -415,11 +416,12 @@ class GraphicsBox(Box):
         try:
             draw(texel.items)
         except Exception as e:
-            dc.SetBrush(wx.RED_BRUSH)
-            dc.SetPen(wx.RED_PEN)
-            dc.DrawRectangle(x, y, self.width, self.height)
+            gc.SetBrush(gc.CreateBrush(wx.RED_BRUSH))
+            gc.SetPen(gc.CreatePen(wx.GraphicsPenInfo(wx.RED)))
+            gc.DrawRectangle(0, 0, self.width, self.height)
             print(e, file=sys.stderr)
         draw = None
+        gc.PopState()
         
     def get_index(self, x, y):
         if x>self.width/2.0:
