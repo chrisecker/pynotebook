@@ -646,8 +646,10 @@ class Builder(BuilderBase):
 
     def BitmapRGBA_handler(self, texel):
         w, h = texel.size
-        bitmap = wx.Bitmap.FromBufferAndAlpha(w, h, texel.data, texel.alpha)
-        return [BitmapBox(bitmap, device=self.device)]
+        img = wx.Image(w, h)
+        img.SetData(bytes(texel.data))
+        img.SetAlpha(bytes(texel.alpha))
+        return [BitmapBox(img.ConvertToBitmap(), device=self.device)]
 
     ### Builder methods
     def create_paragraphs(self, texel):
