@@ -2,7 +2,7 @@
 pnb
 ====
 
-![Screenshot](https://codeberg.org/chrisecker/pynotebook/raw/branch/master/screenshots/ball2.png)
+![Screenshot](https://codeberg.org/chrisecker/pynotebook/raw/branch/master/screenshots/ball.png)
 
 [More screenshots](https://codeberg.org/chrisecker/pynotebook/src/branch/master/screenshots/)
 
@@ -10,14 +10,15 @@ pnb
 Introduction
 ------------
 
-Pnb is an interactive environment for python programming which
-follows the notebook concept of mathematica and jupyter. Notebooks are
-a pleasant way to develop and document python code and to store ideas.
+Pnb is an interactive environment for Python programming inspired by
+the notebook concept of Mathematica and Jupyter. Notebooks offer a
+nice way to develop and document Python code while organizing
+ideas.
 
-Unlike other python notebook applications such as jupyter or spyder,
-pnb is very lightweight and easy to install. It has only two
-dependencies: wxpython and pynotebook.
-
+Unlike heavier applications like Jupyter or Spyder, pnb is
+exceptionally lightweight and easy to install. It has only two
+dependencies: wxPython and pynotebook, the latter of which requires no
+further external packages itself.
 
 
 Features

@@ -8,13 +8,15 @@
 
 ## Introduction
 
-Pynotebook is a library for creating notebook applications in wxPython.  
-A notebook is a document that can contain program code, text, and graphics.  
-Notebooks provide a pleasant way to develop and document code, as well as to store ideas.
+Pynotebook is a library for building notebook interfaces within
+wxPython. A notebook is an interactive document that integrates
+program code, rich text, and graphics into a single file.
 
-Unlike other Python notebook interfaces such as Jupyter or Spyder, Pynotebook (pnb) is very lightweight and can be easily embedded in wxPython applications.
-
-Although Python is the native language for Pynotebook, it is also possible to create notebooks for other scripting languages.
+Unlike heavier environments such as Jupyter or Spyder, Pynotebook is
+exceptionally lightweight and designed to be easily embedded into
+existing wxPython applications. While Python is its native language,
+the library is flexible enough to support other scripting languages as
+well.
 
 Applications using the Pynotebook library include:
 
@@ -44,7 +46,7 @@ or if you do not have the pip executable installed:
     python -m pip install .
 
 If you also want to install pnb:
-    pip install pnb/
+    pip install pnb
 
 ## Links
 
