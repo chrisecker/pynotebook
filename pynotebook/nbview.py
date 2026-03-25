@@ -10,7 +10,7 @@ from .textmodel.iterators import iter_leafes
 from .textmodel.properties import overridable_property
 from .wxtextview.boxes import Box, VGroup, VBox, Row, Rect, check_box, \
     NewlineBox, TextBox, TabulatorBox, extend_range_seperated, replace_boxes, \
-    ChildBox, calc_length
+    ChildBox, calc_length, select_i_by_y
 from .wxtextview.simplelayout import create_paragraphs, Paragraph
 from .wxtextview.testdevice import TESTDEVICE
 from .wxtextview.builder import BuilderBase
@@ -76,17 +76,7 @@ class Frame(ChildBox):
         self.length = calc_length(self.childs)
 
     def get_index(self, x, y):
-        l = [0, len(self)]
-        for j1, j2, x1, y1, child in self.riter_boxes(0, 0, 0):
-            if y1 <= y <= y1+child.height+child.depth:
-                l.append(j1)
-                i = child.get_index(x-x1, y-y1)
-                if i is not None:
-                    l.append(i+j1)
-                if len(child):
-                    l.append(j1+len(child))
-                    l.append(j1+len(child)-1) # This is needed for rows
-        return self._select_index(l, x, y)
+        return select_i_by_y(x, y, self.iter_boxes(0, 0, 0))
 
     def draw(self, x, y, dc):
         device = self.device
@@ -156,11 +146,11 @@ class TextCellBox(VBox):
     def extend_range(self, i1, i2):
         if i1<=0 or i2>=len(self):
             return 0, len(self)
-        return extend_range_seperated(self, i1, i2) # XXX STIMMT DAS?
+        return extend_range_seperated(self, i1, i2)
 
     def draw_selection(self, i1, i2, x, y, dc):
         if i1<=0 and i2>=self.length:
-            self.device.invert_rect(x, y, sepwidth, self.height, dc)
+            self.device.invert_rect(x, y, sepwidth, self.height+self.depth, dc)
         else:
             VBox.draw_selection(self, i1, i2, x, y, dc)
 
@@ -204,15 +194,12 @@ class ScriptingCellBox(VBox):
     inline = '#cfcfcf'
     promptstyle = create_style(
         textcolor = 'darkblue',
-        #bold = True,
         italic = True,
         fontsize = 8,
         )
 
 
     def __init__(self, inbox, outbox, number=0, device=None):
-        #assert isinstance(inbox, ParagraphStack)
-        #assert isinstance(outbox, ParagraphStack)
         self.number = number
         if device is not None:
             self.device=device
@@ -261,10 +248,19 @@ class ScriptingCellBox(VBox):
     def extend_range(self, i1, i2):
         for i in (0, len(self.input), len(self)-1):
             if i1<= i<i2:
-                #print "empty in i1..i2", i, (i1, i2)
-                #self.dump_boxes(0, 0, 0)
                 return min(i1, 0), max(i2, len(self))
         return extend_range_seperated(self, i1, i2)
+
+    def get_ranges(self, i1, i2):
+        # extend_range must be checked before delegating to children,
+        # because the inbox spans inp+sep2 as one box unit but the
+        # texel model treats them as separate children. A selection
+        # ending at the inbox/outbox boundary would cross the inp texel
+        # boundary and cause an IndexError in takeout.
+        e1, e2 = self.extend_range(i1, i2)
+        if (e1, e2) != (i1, i2):
+            return [(e1, e2)]
+        return VBox.get_ranges(self, i1, i2)
 
     def draw(self, x, y, dc):
         draw_bracket(x, y, self.height, dc)
@@ -293,7 +289,7 @@ class ScriptingCellBox(VBox):
 
     def draw_selection(self, i1, i2, x, y, dc):
         if i1<=0 and i2>=self.length:
-            self.device.invert_rect(x, y, sepwidth, self.height, dc)
+            self.device.invert_rect(x, y, sepwidth, self.height+self.depth, dc)
         else:
             VBox.draw_selection(self, i1, i2, x, y, dc)
 
@@ -321,11 +317,6 @@ class ScriptingCellBox(VBox):
         h = self.height
         return Rect(x0, y0+h, sepwidth, y0+h+2)
 
-
-
-
-
- 
 
 
 class BitmapBox(Box):
@@ -578,7 +569,7 @@ class Builder(BuilderBase):
         self.parstyle = texel.parstyle
         if texel.is_endmark:
             return [self.EndBox(self.mk_style(texel.style), self.device)]
-        return [NewlineBox(self.mk_style(texel.style), self.device)] # XXX: Hmmmm
+        return [NewlineBox(self.mk_style(texel.style), self.device)] # Hmmmm
 
     def Tabulator_handler(self, texel):
         return [TabulatorBox(self.mk_style(texel.style), self.device)]
@@ -733,7 +724,7 @@ class NBView(_WXTextView):
         _WXTextView.__init__(self, parent, id=id, pos=pos, size=size,
                              style=style)
         
-        # XXX Hackish method to set a width which scales with dpi
+        # Hackish method to set a width which scales with dpi
         global wleft
         global scalefactor
         if wleft is None:
@@ -1248,8 +1239,7 @@ def test_10():
 
 
 def test_11():
-    # XXX test is broken! 
-    ns = init_testing(redirect=True)
+    ns = init_testing(redirect=False)
     model = ns['model']
     model.remove(0, len(model))
     tmp = TextModel(u'for a in range(16):\n    print(a)')
@@ -1264,23 +1254,12 @@ def test_11():
 
     view = ns['view']
     view.index = 1
-    #print model.texel
     view.execute()
 
     check_box(view.builder._layout, model.texel)
 
-    #view.layout.dump_boxes(0, 0, 0)
-    #assert inside_cell(view.layout, 68, 68)
-
-    #texeltree.dump(model.texel)
-
     model.insert_text(68, u'x')
-    # XXX assert model.get_text()[65:71] == '14\nx15'
-    #view.layout.dump_boxes(0, 0, 0)
-    
     model.remove(68, 69)
-    #view.layout.dump_boxes(0, 0, 0)
-    # XXX assert model.get_text()[65:70] == '14\n15'
 
     model.insert(0, mk_textmodel(cell))
     model.remove(0, length(cell))
@@ -1296,6 +1275,14 @@ def test_11():
 
     # remove the complete output-part
     model.remove(2,3)
+
+    # remove the first scripting cell
+    model.remove(0, 3)
+
+    # when clicking right to "print(a)" the cursor should be placed
+    # behind ")"
+    assert view.layout.get_index(230, 35) == 33
+    
     
     return ns
 
