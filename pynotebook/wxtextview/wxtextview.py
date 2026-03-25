@@ -200,7 +200,7 @@ class WXTextView(wx.ScrolledWindow, TextView):
     def content_offset(self):
         return 0, 0
 
-    def _window_to_content(self, pos):
+    def window_to_content(self, pos):
         """Calculates content coordinates from window-coordinates,
         accounts for scroll position."""
         zoom = self.zoom
@@ -211,20 +211,20 @@ class WXTextView(wx.ScrolledWindow, TextView):
     def on_motion(self, event):
         if not event.LeftIsDown():
             return event.Skip()
-        x, y = self._window_to_content(event.Position)
+        x, y = self.window_to_content(event.Position)
         i = self.layout.get_index(x, y)
         if i is not None:
             self.set_index(i, extend=True)
 
     def on_leftdown(self, event):
-        x, y = self._window_to_content(event.Position)
+        x, y = self.window_to_content(event.Position)
         i = self.compute_index(x, y)
         if i is not None:
             self.set_index(i, extend=event.ShiftDown())
         self.SetFocus()
 
     def on_leftdclick(self, event):
-        x, y = self._window_to_content(event.Position)
+        x, y = self.window_to_content(event.Position)
         self.select_word(x, y)
         self.SetFocus()        
 
