@@ -646,10 +646,14 @@ class Builder(BuilderBase):
 
     def BitmapRGBA_handler(self, texel):
         w, h = texel.size
-        img = wx.Image(w, h)
-        img.SetData(bytes(texel.data))
-        img.SetAlpha(bytes(texel.alpha))
-        return [BitmapBox(img.ConvertToBitmap(), device=self.device)]
+        data = bytearray(texel.data)
+        alpha = bytearray(texel.alpha) if texel.alpha is not None else None
+        if alpha is not None:
+            img = wx.Image(w, h, data, alpha)
+        else:
+            img = wx.Image(w, h, data)
+        bmp = img.ConvertToBitmap()
+        return [BitmapBox(bmp, device=self.device)]
 
     ### Builder methods
     def create_paragraphs(self, texel):
@@ -1403,6 +1407,34 @@ def test_17():
     assert model.get_parstyle(i1) == {'bullet':True}
     assert model.get_parstyle(i2) == {}
     
+
+def test_18():
+    "BitmapRGBA handler: pixel data survives handler round-trip"
+    import pickle, gc
+    ns = init_testing(False)
+    builder = ns['view'].builder
+
+    w, h = 8, 8
+    data  = bytes(i % 256 for i in range(w * h * 3))
+    alpha = bytes(128 + i % 128 for i in range(w * h))
+
+    # Test 1: fresh texel (simulates pyclient output)
+    def _make_loaded(d, a):
+        # Simulate: source image goes out of scope before handler is called
+        t = BitmapRGBA(bytes(d), bytes(a), (w, h))
+        return pickle.loads(pickle.dumps(t))
+
+    texel = _make_loaded(data, alpha)
+    gc.collect()
+
+    boxes = builder.BitmapRGBA_handler(texel)
+    gc.collect()  # expose dangling ptr in wx.Image(data, alpha) if bytes are temporary
+
+    bmp = boxes[0].bitmap
+    img = bmp.ConvertToImage()
+    assert bytes(img.GetData())  == data,  "RGB data wrong after handler"
+    assert bytes(img.GetAlpha()) == alpha, "alpha wrong after handler"
+
 
 def demo_00():
     from .wxtextview import testing

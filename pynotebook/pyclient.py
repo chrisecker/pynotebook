@@ -182,13 +182,9 @@ def __transform__(obj, iserr):
         w, h = obj.canvas.get_width_height()
         buf = obj.canvas.buffer_rgba()
         import wx
-        bmp = wx.Bitmap.FromBufferRGBA(w, h, buf)
-        img = bmp.ConvertToImage()
-
-        data = img.GetData()
-        alpha = img.GetAlpha()
-
-        return nbtexels.BitmapRGBA(data, alpha, (w, h))        
+        img = wx.Bitmap.FromBufferRGBA(w, h, buf).ConvertToImage()
+        img.ClearAlpha()
+        return nbtexels.BitmapRGB(img.GetData(), (w, h))
     return obj
 
 """

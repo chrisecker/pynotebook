@@ -103,13 +103,12 @@ def find_cell(texel, i, i0=0):
 def _bitmap_saver(bitmap):
     # we convert images to png before saving to save disk space
     w, h = bitmap.size
-    im = wx.Image(w, h, bitmap.data)
     if isinstance(bitmap, BitmapRGBA):
-        im.SetAlphaBuffer(bitmap.alpha)
+        im = wx.Image(w, h, bitmap.data, bitmap.alpha)
+    else:
+        im = wx.Image(w, h, bitmap.data)
     output = io.BytesIO()
     im.SaveFile(output, wx.BITMAP_TYPE_PNG)
-
-    r = base64.b64encode(output.getvalue())
     return base64.b64encode(output.getvalue())
 
 
@@ -118,7 +117,13 @@ def _bitmap_loader(data):
     pngdata = base64.b64decode(data)
     stream = io.BytesIO(pngdata)
     image = wx.Image(stream, type=wx.BITMAP_TYPE_ANY)
-    return (image.Width, image.Height), image.GetData(), image.GetAlpha()
+    # Force copies: GetData/GetAlpha may return memoryviews backed by
+    # the wxImage's internal buffer. Once `image` is garbage-collected
+    # that memory is freed and reused, producing aliasing artifacts.
+    alpha = image.GetAlpha()
+    return ((image.Width, image.Height),
+            bytes(image.GetData()),
+            bytes(alpha) if alpha is not None else None)
 
 
 
@@ -217,3 +222,83 @@ def test_01():
     obj = pickle.loads(s)
     s2 = pickle.dumps(obj)
     assert s == s2
+
+
+def _make_bitmap_rgba(w, h):
+    # Creates BitmapRGBA from a wx.Image that immediately goes out of scope,
+    # simulating the real usage in pyclient.__transform__ and _bitmap_loader.
+    im = wx.ArtProvider.GetBitmap(wx.ART_WARNING, size=(w, h)).ConvertToImage()
+    return BitmapRGBA(bytes(im.GetData()), bytes(im.GetAlpha()), (w, h))
+
+
+def test_04():
+    "Regression: wx.Image buffer reuse corrupts alpha across sequential loads"
+    # wx.Image uses an internal memory pool. When the first image is freed,
+    # the second wx.Image load may receive the same buffer. If GetData/GetAlpha
+    # returned views (not copies), the first texel's alpha would silently
+    # contain the second image's data.
+    import gc
+    app = wx.App()
+
+    w, h = 8, 8
+    alpha_a = bytes([200] * (w * h))
+    alpha_b = bytes([100] * (w * h))
+    state_a = _bitmap_saver(BitmapRGBA(bytes(range(w*h*3)),      alpha_a, (w, h)))
+    state_b = _bitmap_saver(BitmapRGBA(bytes([128]*(w*h*3)), alpha_b, (w, h)))
+
+    # Load A — keep the returned alpha alive
+    _, _, a1 = _bitmap_loader(state_a)
+    snapshot1 = bytes(a1)          # snapshot immediately after load
+    gc.collect()
+
+    # Load B — in the buggy version this reuses A's freed buffer
+    _, _, a2 = _bitmap_loader(state_b)
+    gc.collect()
+    snapshot2 = bytes(a1)          # re-read A's alpha after B was loaded
+
+    assert snapshot1 == alpha_a, f"alpha_a wrong after load: {set(snapshot1)}"
+    # This assertion catches the bug: if a1 is a view into the reused buffer,
+    # snapshot2 would equal alpha_b (or garbage) instead of alpha_a.
+    assert snapshot2 == alpha_a, \
+        f"alpha_a corrupted after loading image B: {set(snapshot2)} != {set(alpha_a)}"
+
+
+def test_03():
+    "BitmapRGBA: alpha and RGB survive _bitmap_saver/_bitmap_loader"
+    app = wx.App()
+    w, h = 8, 8
+    data  = bytes(i % 256 for i in range(w * h * 3))
+    alpha = bytes(128 + i % 128 for i in range(w * h))  # non-trivial, non-255 values
+    texel = BitmapRGBA(data, alpha, (w, h))
+
+    state = _bitmap_saver(texel)
+    (lw, lh), ldata, lalpha = _bitmap_loader(state)
+
+    assert (lw, lh) == (w, h), f"size mismatch: {(lw,lh)}"
+    assert ldata == data,   f"RGB data corrupted in save/load"
+    assert lalpha == alpha, f"alpha corrupted: {list(lalpha[:8])} != {list(alpha[:8])}"
+
+
+def test_02():
+    "BitmapRGBA round-trip: pixel data survives save/load (dangling-ptr regression)"
+    import pickle, gc
+    app = wx.App()
+
+    # Create reference data with wx.Image out of scope
+    ref = _make_bitmap_rgba(64, 64)
+    ref_data = bytes(ref.data)
+    ref_alpha = bytes(ref.alpha)
+    gc.collect()
+
+    # Round-trip via pickle (__getstate__ / __setstate__)
+    loaded = pickle.loads(pickle.dumps(ref))
+    gc.collect()
+
+    assert loaded.size == ref.size
+    assert bytes(loaded.data)  == ref_data,  "RGB data corrupted after save/load"
+    assert bytes(loaded.alpha) == ref_alpha, "alpha data corrupted after save/load"
+
+    # Second round-trip: loaded object saved again must be stable
+    loaded2 = pickle.loads(pickle.dumps(loaded))
+    assert bytes(loaded2.data)  == ref_data,  "RGB data corrupted on 2nd save/load"
+    assert bytes(loaded2.alpha) == ref_alpha, "alpha data corrupted on 2nd save/load"
