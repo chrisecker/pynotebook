@@ -334,7 +334,7 @@ class BitmapBox(Box):
         if 0: yield 0,0,0
 
     def draw(self, x, y, dc):
-        dc.DrawBitmap(self.bitmap, x, y, useMask=False)
+        dc.DrawBitmap(self.bitmap, x, y, self.width, self.height)
 
     def get_index(self, x, y):
         if x>self.width/2.0:
