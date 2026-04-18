@@ -9,7 +9,7 @@ from .textmodel.texeltree import Group, Text, groups, grouped, insert, \
 from .textmodel.iterators import iter_leafes
 from .textmodel.properties import overridable_property
 from .wxtextview.boxes import Box, VGroup, VBox, Row, Rect, check_box, \
-    NewlineBox, TextBox, TabulatorBox, extend_range_seperated, replace_boxes, \
+    NewlineBox, TextBox, TabulatorBox, replace_boxes, \
     ChildBox, calc_length, select_i_by_y
 from .wxtextview.simplelayout import create_paragraphs, Paragraph
 from .wxtextview.testdevice import TESTDEVICE
@@ -143,11 +143,6 @@ class TextCellBox(VBox):
         return self.__class__.__name__+'(%s)' % \
             (repr(self.text),)
 
-    def extend_range(self, i1, i2):
-        if i1<=0 or i2>=len(self):
-            return 0, len(self)
-        return extend_range_seperated(self, i1, i2)
-
     def draw_selection(self, i1, i2, x, y, dc):
         if i1<=0 and i2>=self.length:
             self.device.invert_rect(x, y, sepwidth, self.height+self.depth, dc)
@@ -156,7 +151,7 @@ class TextCellBox(VBox):
 
     def responding_child(self, i, x0, y0):
         # As default behaviour a VBox manages all index positions 0 to
-        # n. Here we want position n to be managed by the next object. 
+        # n. Here we want position n to be managed by the next object.
         if i == len(self):
             # Index i is between this box and the next box. We return
             # None to signal that the next box should be the
@@ -244,23 +239,6 @@ class ScriptingCellBox(VBox):
         return self.__class__.__name__+'(%s, %s)' % \
             (repr(self.input),
              repr(self.output))
-
-    def extend_range(self, i1, i2):
-        for i in (0, len(self.input), len(self)-1):
-            if i1<= i<i2:
-                return min(i1, 0), max(i2, len(self))
-        return extend_range_seperated(self, i1, i2)
-
-    def get_ranges(self, i1, i2):
-        # extend_range must be checked before delegating to children,
-        # because the inbox spans inp+sep2 as one box unit but the
-        # texel model treats them as separate children. A selection
-        # ending at the inbox/outbox boundary would cross the inp texel
-        # boundary and cause an IndexError in takeout.
-        e1, e2 = self.extend_range(i1, i2)
-        if (e1, e2) != (i1, i2):
-            return [(e1, e2)]
-        return VBox.get_ranges(self, i1, i2)
 
     def draw(self, x, y, dc):
         draw_bracket(x, y, self.height, dc)
@@ -1255,7 +1233,7 @@ def test_11():
     model.insert(len(model), mk_textmodel(cell))
 
     assert model.index2position(0) == (0, 0)
-    assert model.index2position(1) == (1, 0)
+    assert model.index2position(1) == (0, 1)  # container NL-weight=0
     cell = model.texel
 
     assert find_cell(model.texel, 1) == (0, cell)
@@ -1386,25 +1364,23 @@ def test_16():
     view = ns['view']
 
 
-def test_17():    
+def test_17():
     "parstyle"
     model = TextModel('')
     tmp = TextModel(u'Line 1\nLine 2\nLine 3')
     cell = TextCell(tmp.texel)
     model.insert(len(model), mk_textmodel(cell))
-    i0 = 0
-    i1 = model.linestart(1)
-    i2 = model.linestart(2)
-    #print i0, i1, i2
+    # Cell separators have NL-weight 0; lines inside the cell are
+    # accessible via find_newline, not linestart.
+    i0 = 1   # inside "Line 1"
+    i1 = model.find_newline(i0) + 1   # start of "Line 2"
+    i2 = model.find_newline(i1) + 1   # start of "Line 3"
     assert model.get_parstyle(i0) == {}
     assert model.get_parstyle(i1) == {}
     assert model.get_parstyle(i2) == {}
-    #dump(model.texel)
-    #print
-    model.set_parproperties(i1, i2, bullet = True)
-    #dump(model.texel)
+    model.set_parproperties(i1, i2, bullet=True)
     assert model.get_parstyle(i0) == {}
-    assert model.get_parstyle(i1) == {'bullet':True}
+    assert model.get_parstyle(i1) == {'bullet': True}
     assert model.get_parstyle(i2) == {}
     
 

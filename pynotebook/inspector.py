@@ -41,7 +41,7 @@ class ColourButton(wx.Button):
         dc = wx.MemoryDC(bmp)
 
         if self.colour is None:
-            # Mixed-State: diagonalen Streifen auf weiße Hintergrund
+            # Mixed-State: diagonalen Streifen auf weiï¿½e Hintergrund
             dc.SetBackground(wx.WHITE_BRUSH)
             dc.Clear()
             brush = wx.Brush(wx.BLACK, wx.BRUSHSTYLE_BDIAGONAL_HATCH)            
@@ -347,8 +347,8 @@ class TextCellInspector(Inspector):
 
         
 def _collect_properties(texel, i1, i2, parstyle, mk_style):
-    """Gibt ein Dict mit Properties zurück (values sind None wenn
-    uneindeutig) und ein Set mit override den überschriebenen
+    """Gibt ein Dict mit Properties zurï¿½ck (values sind None wenn
+    uneindeutig) und ein Set mit override den ï¿½berschriebenen
     Properties.
 
     """
@@ -371,7 +371,7 @@ def _collect_properties(texel, i1, i2, parstyle, mk_style):
         if isinstance(texel, NewLine):
             parstyle = texel.parstyle
         s = texel.style
-        overrides = set(s.keys()).union(parstyle.keys())
+        overrides = set(s.keys())
         properties = mk_style(parstyle, s)        
     return properties, overrides, parstyle
 
@@ -434,8 +434,8 @@ def demo_00():
 def test_00():
     "get_parstyle" # just to be sure
     m = TextModel("Eins\nZwei\ndrei")
-    m.set_parstyle(0, dict(x=1)) # -> Parstyle für "Eins\n"
-    m.set_parstyle(5, dict(x=2)) # -> Parstyle für "Zwei\n"
+    m.set_parstyle(0, dict(x=1)) # -> Parstyle fï¿½r "Eins\n"
+    m.set_parstyle(5, dict(x=2)) # -> Parstyle fï¿½r "Zwei\n"
     assert m.get_parstyle(0)['x'] == 1 # E
     assert m.get_parstyle(1)['x'] == 1 # i
     assert m.get_parstyle(2)['x'] == 1 # n
@@ -448,9 +448,9 @@ def test_01():
     "collect styles"
     
     m = TextModel("Eins\nZwei\ndrei")
-    m.set_parstyle(0, dict(x=1)) # -> Parstyle für "Eins\n"
-    m.set_parstyle(5, dict(x=2)) # -> Parstyle für "Zwei\n"
-    m.set_parstyle(11, dict(x=3)) # -> Parstyle für "Drei\n"
+    m.set_parstyle(0, dict(x=1)) # -> Parstyle fï¿½r "Eins\n"
+    m.set_parstyle(5, dict(x=2)) # -> Parstyle fï¿½r "Zwei\n"
+    m.set_parstyle(11, dict(x=3)) # -> Parstyle fï¿½r "Drei\n"
     #dump(m.get_xtexel())
 
     assert collect_properties(m, 1, 3) == ({'x': 1}, set())
