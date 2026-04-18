@@ -1,4 +1,4 @@
-# -*- coding: latin-1 -*-
+﻿# -*- coding: utf-8 -*-
 
 
 from .texeltree import Text, Group, NewLine, Tabulator, insert, takeout, \

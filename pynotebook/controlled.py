@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 # log method calls which lead to exceptions
 
 import os

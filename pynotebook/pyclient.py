@@ -1,4 +1,4 @@
-# -*- coding: latin-1 -*-
+ï»¿# -*- coding: utf-8 -*-
 
 from .clients import Client, Aborted
 from .nbstream import StreamRecorder
@@ -465,9 +465,9 @@ def test_04():
     "colorize (2)"
     client = PythonClient()    
     text = u"# Die Integralzeichen sind in vielen Unicode-Fonts enthalten. Z.B. "\
-    u"FONTFAMILY_ROMAN. Sieht leider alles sehr ähnlich aus. Schöner ist z.B. wasy10. "\
-    u"Der Font ist aber nicht auf allen Plattformen enthalten. Symbol dürfte enthalten"\
-    u" sein, enthält aber nicht das Mittelstück.\n"
+    u"FONTFAMILY_ROMAN. Sieht leider alles sehr Ã¤hnlich aus. SchÃ¶ner ist z.B. wasy10. "\
+    u"Der Font ist aber nicht auf allen Plattformen enthalten. Symbol dÃ¼rfte enthalten"\
+    u" sein, enthÃ¤lt aber nicht das MittelstÃ¼ck.\n"
     u"# https://de.wikipedia.org/wiki/Integralzeichen  "
     textmodel = TextModel(text)
     client.colorize(textmodel.texel)

@@ -1,4 +1,4 @@
-# -*- coding: latin-1 -*-
+﻿# -*- coding: utf-8 -*-
 
 
 from ..textmodel.viewbase import ViewBase, overridable_property

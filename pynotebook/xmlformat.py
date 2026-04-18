@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 from .textmodel import texeltree 
 from . import nbtexels
 from xml.sax.saxutils import escape

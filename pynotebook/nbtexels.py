@@ -1,4 +1,4 @@
-# -*- coding: latin-1 -*-
+﻿# -*- coding: utf-8 -*-
 
 
 from .textmodel.textmodel import TextModel, dump_range

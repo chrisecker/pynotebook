@@ -1,4 +1,4 @@
-# -*_ coding: latin-1 -*-
+﻿# -*- coding: utf-8 -*-
 
 # The purpose of streams is to combine the stdout and stderr channels
 # into a single channel, aka a "stream".
