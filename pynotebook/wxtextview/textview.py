@@ -5,7 +5,9 @@ from ..textmodel.viewbase import ViewBase, overridable_property
 from ..textmodel.modelbase import Model
 from ..textmodel.textmodel import dump_range
 from ..textmodel.texeltree import length, iter_childs
+from ..textmodel.utils import get_path
 from ..textmodel import TextModel
+from contextlib import contextmanager
 import sys
 
 
@@ -62,11 +64,10 @@ def left_limit(texel, i0, i):
             if i0+i1 < i < i0+i2:  # mitten in dem Element
                 return max(i0+i1, left_limit(child, i0+i1, i))
     if texel.is_group:
-        for i1, i2, child in iter_childs(texel): 
+        for i1, i2, child in iter_childs(texel):
             if i0+i1 < i < i0+i2:  # mitten in dem Element
                 return left_limit(child, i0+i1, i)
     return 0
-
 
 
 class TextView(ViewBase, Model):
@@ -83,12 +84,84 @@ class TextView(ViewBase, Model):
     _zoom = 1.0
     _scrollrate = 10, 10
     _TextModel = TextModel
+    editor = None
+
+    highlights  = []
+    squiggles   = []
+    min_zoom    = 0.2
+    max_zoom    = 5.0
+    zoom_step   = 0.1
+
+    _pending_range = None
+    _inhibit_depth = 0
+
     def __init__(self):
         ViewBase.__init__(self)
         self.clear_undo()
         self.set_model(self._TextModel(''))
         assert self.builder is not None
         assert self.layout is not None
+
+    ### Editor slot
+
+    editor_registry = []  # editor classes, priority order; subclasses may extend
+
+    def try_install_click_editor(self):
+        """Install a click_installable editor at the current index, if any matches.
+
+        Returns True if an editor was installed.
+        """
+        path = get_path(self.model.get_xtexel(), self.index)
+        for cls in self.editor_registry:
+            if not cls.click_installable:
+                continue
+            m = cls.match(self, path)
+            if m is not None:
+                i1, i2, depth, texel = m
+                editor = cls(self, i1, i2, depth)
+                self.install_editor(editor, texel)
+                return True
+        return False
+
+    def install_editor(self, editor, texel):
+        editor.install(texel)
+        self.editor = editor
+        self.notify_views('editor_changed', editor)
+        self.refresh()
+
+    def reinstall_editor(self, texel):
+        self.editor.reinstall(texel)
+
+    def remove_editor(self):
+        if self.editor is not None:
+            self.editor = None
+            self.notify_views('editor_changed', None)
+            self.refresh()
+
+    def update_editor(self):
+        index = self.index
+        editor = self.editor
+        path = get_path(self.model.get_xtexel(), index)
+
+        if editor is not None:
+            m = editor.match(self, path)
+            if m is not None:
+                i1, i2, depth, texel = m
+                assert i1 == editor.i1
+                assert i2 == editor.i2
+                self.reinstall_editor(texel)
+                return
+            self.remove_editor()
+
+        for cls in self.editor_registry:
+            if not cls.auto_installable:
+                continue
+            m = cls.match(self, path)
+            if m is not None:
+                i1, i2, depth, texel = m
+                editor = cls(self, i1, i2, depth)
+                self.install_editor(editor, texel)
+                return
 
     def create_builder(self):
         raise NotImplementedError
@@ -285,12 +358,15 @@ class TextView(ViewBase, Model):
     def get_maxw(self):
         return self._maxw
 
+    def get_client_size(self):
+        return 800, 600  # headless / test default; wx subclasses override
+
     def set_maxw(self, maxw):
         if maxw == self._maxw:
             return
         self._maxw = maxw
         self.builder.set_maxw(maxw)
-        self.Refresh()
+        self.refresh()
         self.notify_views('maxw_changed')
 
     def indent_rows(self, firstrow, lastrow, n=4):
@@ -400,7 +476,7 @@ class TextView(ViewBase, Model):
         y = rect.y1
         if self.has_selection():
             s1, s2 = sorted(self.selection)
-            e1, e2 = layout.extend_range(s1, s2)
+            e1, e2 = self.model.expand_range(s1, s2)
         else:
             s1 = s2 = e1 = e2 = index
 
@@ -476,11 +552,11 @@ class TextView(ViewBase, Model):
         elif action == 'move_line_end':
             self.set_index(model.linestart(row)+model.linelength(row)-1, shift)
         elif action == 'move_page_down':
-            _, height = self.GetClientSize()
+            _, height = self.get_client_size()
             i = self.compute_index(x, y + height / self.zoom)
             self.set_index(i, shift)
         elif action == 'move_page_up':
-            _, height = self.GetClientSize()
+            _, height = self.get_client_size()
             i = self.compute_index(x, y - height / self.zoom)
             self.set_index(i, shift)
         elif action == 'move_document_start':
@@ -504,7 +580,7 @@ class TextView(ViewBase, Model):
             self.insert(index, tmp)            
         elif action == 'backspace':
             if self.has_selection():
-                j1, j2 = layout.extend_range(s1-1, s2)
+                j1, j2 = self.model.expand_range(s1-1, s2)
                 if j2 != e2:
                     self.remove(e1, e2)
                 else:
@@ -512,21 +588,21 @@ class TextView(ViewBase, Model):
             else:
                 i = self.index
                 if i>0:
-                    j1, j2 = layout.extend_range(i-1, i)
+                    j1, j2 = self.model.expand_range(i-1, i)
                     self.remove(j1, j2)
         elif action == 'copy':
-            self.copy()
+            self.editor.copy() if self.editor is not None else self.copy()
         elif action == 'paste':
-            self.paste()
+            self.editor.paste() if self.editor is not None else self.paste()
         elif action == 'cut':
-            self.cut()
+            self.editor.cut() if self.editor is not None else self.cut()
         elif action == 'delete':
             if self.has_selection():
                 del_selection()
             else:
                 i = self.index
                 if i < len(self.model):
-                    j1, j2 = layout.extend_range(i, i+1)
+                    j1, j2 = self.model.expand_range(i, i+1)
                     self.remove(j1, j2)
         elif action == 'undo':
             self.undo()
@@ -537,7 +613,7 @@ class TextView(ViewBase, Model):
             if i == index:
                 i += 1
             i = min(i, right_limit(model.texel, 0, index))
-            j1, j2 = layout.extend_range(index, i)
+            j1, j2 = self.model.expand_range(index, i)
             self.to_clipboard(model[j1:j2])
             self.remove(j1, j2)
         elif action == 'del_word_left':
@@ -551,14 +627,14 @@ class TextView(ViewBase, Model):
             except IndexError:
                 i = 0
             i = max(i, left_limit(model.texel, 0, index))                
-            j1, j2 = layout.extend_range(i, index)
+            j1, j2 = self.model.expand_range(i, index)
             self.remove(j1, j2)
-        else:                  
+        else:
             #print keycode
             assert len(action) == 1 # single character
             del_selection()
             self.insert_text(self.index, action, **style)
-        self.Refresh()
+        self.refresh()
 
     def copy(self):
         if not self.has_selection():
@@ -625,12 +701,42 @@ class TextView(ViewBase, Model):
     def rebuild_range(self, i1, i2, delta):
         self.builder.rebuild_range(i1, i2, delta)
 
+    def _rebuild_with_progress(self, i1, i2, delta):
+        self.builder.rebuild_range(i1, i2, delta)
+        self.refresh()
+
+    def ensure_viewport(self):
+        pass
+
+    def ensure_index(self, index=None):
+        pass
+
+    def _accumulate(self, i1, i2, delta=0):
+        self._pending_range = accumulate(self._pending_range, (i1, i2, delta))
+
+    @contextmanager
+    def atomic(self):
+        """Group multiple model/stylesheet changes into one layout rebuild."""
+        self.begin_undo_group()
+        self._inhibit_depth += 1
+        try:
+            yield
+        finally:
+            self.end_undo_group()
+            self._inhibit_depth -= 1
+        if self._inhibit_depth == 0 and self._pending_range is not None:
+            i1, i2, delta = self._pending_range
+            self._pending_range = None
+            self._rebuild_with_progress(i1, i2, delta)
+
     ### Signals issued by model
     def properties_changed(self, model, i1, i2):
         self.rebuild_range(i1, i2, 0)
         self.refresh()
 
     def inserted(self, model, i, n):
+        if self.editor is not None:
+            self.remove_editor()
         self.rebuild_range(i, i, n)
         if debug:
             self.check()
@@ -646,6 +752,8 @@ class TextView(ViewBase, Model):
         self.refresh()
 
     def removed(self, model, i, text):
+        if self.editor is not None:
+            self.remove_editor()
         self.rebuild_range(i, i, -len(text))
         n = len(text)
         i1 = i
@@ -674,6 +782,7 @@ class TextView(ViewBase, Model):
         
     ### Index
     def set_index(self, index, extend=False, update=True):
+        old = self._index
         if index < 0:
             index = 0
         elif index > len(self.model):
@@ -691,6 +800,9 @@ class TextView(ViewBase, Model):
             self.adjust_viewport()
             self.refresh()
             self.notify_views('index_changed')
+        if old != index and self.editor is not None:
+            self.remove_editor()
+        self.update_editor()
 
     def get_index(self):
         return self._index
@@ -725,7 +837,7 @@ class TextView(ViewBase, Model):
         if old is not None:
             i1, i2 = old
         self._selection = selection
-        self.Refresh()
+        self.refresh()
         self.notify_views('selection_changed')
 
     def has_selection(self):
@@ -739,7 +851,13 @@ class TextView(ViewBase, Model):
         if selection is None:
             return []
         s1, s2 = sorted(selection)
-        return self.layout.get_ranges(s1, s2)
+        if s1 == s2:
+            return []
+        if self.editor is not None:
+            result = self.editor.selected(s1, s2)
+            if result is not None:
+                return result
+        return [self.model.expand_range(s1, s2)]
 
     def start_selection(self):
         index = self.index
@@ -753,6 +871,49 @@ class TextView(ViewBase, Model):
             self.selection = index, index
         else:
             self.selection = selection[0], index
-        
-        
-    
+
+
+def accumulate(r1, r2):
+    """Combine two consecutive update ranges into one.
+
+    r1 = (i1, i2, delta) in original model coordinates.
+    r2 = (b1, b2, d2)    in model coordinates after r1 was applied.
+    """
+    if r1 is None:
+        return r2
+    elif r2 is None:
+        return r1
+
+    pi1, pi2, pd = r1
+    b1,  b2,  d2 = r2
+
+    pi2_m0  = pi2 + max(0, -pd)
+    pi1_m1  = pi1 + max(0,  pd)
+
+    if b1 > pi1_m1:
+        b1o = b1 - pd
+        b2o = b2 - pd
+    elif b2 < pi1:
+        b1o = b1
+        b2o = b2
+    else:
+        b1o = min(b1, pi1)
+        b2o = max(b2 - pd, pi2_m0)
+
+    return (min(pi1, b1o), max(pi2_m0, b2o), pd + d2)
+
+
+def test_accumulate():
+    "accumulate: combining two update ranges"
+    assert accumulate((2, 5, 0), (8, 12, 0)) == (2, 12, 0)
+    assert accumulate((8, 12, 0), (2, 5, 0)) == (2, 12, 0)
+    assert accumulate((2, 8, 0), (5, 12, 0)) == (2, 12, 0)
+    assert accumulate((5, 5, 1), (10, 10, 1)) == (5, 9, 2)
+    assert accumulate((10, 10, 1), (3, 3, 1)) == (3, 10, 2)
+    assert accumulate((5, 5, 3), (6, 6, 0)) == (5, 5, 3)
+    assert accumulate((5, 5, -3), (7, 7, 0)) == (5, 10, -3)
+    assert accumulate((5, 5, -3), (2, 3, 0)) == (2, 8, -3)
+    assert accumulate((3, 3, 2), (8, 8, -4)) == (3, 6, -2)
+    assert accumulate((5, 5, 2), (3, 10, 0)) == (3, 8, 2)
+    assert accumulate((5, 5, -3), (3, 7, 0)) == (3, 10, -3)
+
