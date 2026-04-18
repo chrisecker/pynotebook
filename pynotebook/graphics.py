@@ -352,16 +352,19 @@ class Scale:
 
 
 
-def register_classes():
+def _register_graphics_classes():
     from .cerealizerformat import register
-    import types
     registered = set()
-    for name, value in globals().items():
-        if type(value) is type:
-            if value in registered:
-                continue
+    for value in list(globals().values()):
+        if isinstance(value, type) and value not in registered:
             register(value)
             registered.add(value)
+
+_register_graphics_classes()
+
+
+def register_classes():
+    pass  # registration happens automatically on import
 
 
 def init_testing(redirect=True):

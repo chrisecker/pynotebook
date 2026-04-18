@@ -165,15 +165,20 @@ def Sketch(l, *args, **kwds): # XXX highly experimental
     return Graphics(_unscale_widths(l), *args, **kwds)
 
 
-def register_classes():
+def _register_wxgraphics_classes():
     from .cerealizerformat import register
-    import types
-    for name, value in globals().items():
-        if type(value) is type:
-            if hasattr(value, 'regname'):
-                register(value, classname=value.regname)
-            else:
-                register(value)
+    registered = set()
+    for value in list(globals().values()):
+        if isinstance(value, type) and value not in registered:
+            classname = getattr(value, 'regname', None)
+            register(value, classname=classname)
+            registered.add(value)
+
+_register_wxgraphics_classes()
+
+
+def register_classes():
+    pass  # registration happens automatically on import
 
 
 def init_testing(redirect=True):

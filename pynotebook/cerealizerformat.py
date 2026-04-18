@@ -17,14 +17,19 @@ from io import BytesIO
 magic = b'pynotebook0'
 cmagic =b'cereal1'
 
-def register(Class, handler=None, classname = None):
+def register(Class, handler=None, classname=None):
     # By default we want to register a class by its short name,
     # however in cerealizer the default is the full name (module +
     # name). I prefer the short name, because classes may be moved to
     # other modules during development.
+    # Idempotent: silently skip already-registered classes so that
+    # importing graphics modules multiple times never raises.
     if classname is None:
         classname = Class.__name__
-    cerealizer.register(Class, handler, classname)
+    try:
+        cerealizer.register(Class, handler, classname)
+    except ValueError:
+        pass
 
 
 

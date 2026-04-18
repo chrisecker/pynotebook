@@ -735,8 +735,13 @@ class NBView(_WXTextView):
   
     def _load(self, filename):
         s = open(filename, 'rb').read()
-        from . import cerealizerformat        
-        model = cerealizerformat.loads(s)
+        from . import cerealizerformat, jsonformat
+        if s.startswith(cerealizerformat.magic):
+            model = cerealizerformat.loads(s)
+        elif s.startswith(jsonformat.magic.encode()):
+            model = jsonformat.loads(s.decode('utf-8'))
+        else:
+            raise ValueError('Unknown file format: %r' % s[:20])
         reset_numbers(model.texel)
         self.set_model(model)
 
@@ -745,10 +750,10 @@ class NBView(_WXTextView):
         # not reset cursor, selection etc.
         _WXTextView.set_model(self, model)
 
-    def save(self, filename):        
-        from . import cerealizerformat
-        s = cerealizerformat.dumps(self.model)
-        open(filename, 'wb').write(s)
+    def save(self, filename):
+        from . import jsonformat
+        s = jsonformat.dumps(self.model)
+        open(filename, 'wb').write(s.encode('utf-8'))
 
     def init_clients(self):
         self._clients = ClientPool()        
@@ -1410,6 +1415,30 @@ def test_18():
     img = bmp.ConvertToImage()
     assert bytes(img.GetData())  == data,  "RGB data wrong after handler"
     assert bytes(img.GetAlpha()) == alpha, "alpha wrong after handler"
+
+
+def test_19():
+    "save/load round-trip (JSON) and backward-compat (cereal)"
+    from . import cerealizerformat, jsonformat
+    from .textmodel.texeltree import Text
+
+    model = TextModel('')
+    tmp = TextModel(u'hello\nworld')
+    cell = ScriptingCell(tmp.texel, NULL_TEXEL)
+    model.insert(len(model), mk_textmodel(cell))
+    text_before = model.get_text()
+
+    # JSON round-trip
+    s = jsonformat.dumps(model)
+    assert s.startswith(jsonformat.magic)
+    clone = jsonformat.loads(s)
+    assert clone.get_text() == text_before
+
+    # cereal backward-compat: old files still load
+    s_old = cerealizerformat.dumps(model)
+    assert s_old.startswith(cerealizerformat.magic)
+    clone_old = cerealizerformat.loads(s_old)
+    assert clone_old.get_text() == text_before
 
 
 def demo_00():
