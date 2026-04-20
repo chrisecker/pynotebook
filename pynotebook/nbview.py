@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 
 from .textmodel import texeltree
@@ -15,7 +15,9 @@ from .wxtextview.simplelayout import create_paragraphs, Paragraph
 from .wxtextview.testdevice import TESTDEVICE
 from .wxtextview.builder import BuilderBase
 from .wxtextview.wxdevice import WxDevice
-from .wxtextview.wxtextview import WXTextView as _WXTextView
+from .wxtextview.wxtextview import WXTextView as _WXTextView, WxMixin
+from .wxtextview.textview import TextView, get_localroot
+from .textmodel.weights import find_weight, get_weight
 
 from .nbtexels import Cell, ScriptingCell, TextCell, Graphics, find_cell, \
     mk_textmodel, NotFound, strip_output, split_cell, BitmapRGB, BitmapRGBA
@@ -695,43 +697,26 @@ def strip_cells(texel):
     return [texel]
 
 
-class NBView(_WXTextView):
+class _NBView(TextView):
+    """NBView logic without wx dependencies. Usable in headless tests."""
     temp_range = (0, 0)
     ScriptingCell = ScriptingCell
-    _maxw = 0 # will be set later
+    _maxw = 0
     _logfile = None
-    def __init__(self, parent, id=-1,
-                 pos=wx.DefaultPosition, size=wx.DefaultSize, style=0, 
-                 resize=False, filename=None, maxw=None, logfile=None):
-        #if logfile:
-        #    self._logfile = logfile
-        self.init_clients()
-        self.do_resize = resize
-        _WXTextView.__init__(self, parent, id=id, pos=pos, size=size,
-                             style=style)
-        
-        # Hackish method to set a width which scales with dpi
-        global wleft
-        global scalefactor
-        if wleft is None:
-            dc = wx.ScreenDC()
-            dc.SetFont(self.Font)
-            scalefactor = dc.CharWidth / float(dc.Font.GetPointSize())
-            wleft = dc.GetTextExtent("123456789012345")[0]
-            
-        if maxw is None:
-            dc = wx.ScreenDC()
-            dc.SetFont(self.Font)
-            maxw = dc.GetTextExtent("123456789012345")[0]*8
-        self.maxw = maxw # note that this will also set builder.maxw
 
-        if filename is not None:
-            self._load(filename)
-        self.actions[(wx.WXK_TAB, False, False)] = 'complete'
-        self.actions[(wx.WXK_RETURN, True, False)] = 'execute'
-        self.actions[(wx.WXK_RETURN, False, False)] = 'insert_newline_indented'
-        self.actions[(2, True, False)] = 'split_cell'
-        self.actions[(8, True, False)] = 'help'
+    def __init__(self):
+        global wleft, scalefactor
+        if wleft is None:
+            wleft = 100
+            scalefactor = 1.0
+        self.init_clients()
+        TextView.__init__(self)
+
+    def refresh(self):
+        pass
+
+    def adjust_viewport(self):
+        pass
   
     def _load(self, filename):
         s = open(filename, 'rb').read()
@@ -748,7 +733,7 @@ class NBView(_WXTextView):
     def set_model(self, model):
         # Only meant to be called on fresh NBViews. Therefore we do
         # not reset cursor, selection etc.
-        _WXTextView.set_model(self, model)
+        TextView.set_model(self, model)
 
     def save(self, filename):
         from . import jsonformat
@@ -756,44 +741,20 @@ class NBView(_WXTextView):
         open(filename, 'wb').write(s.encode('utf-8'))
 
     def init_clients(self):
-        self._clients = ClientPool()        
+        self._clients = ClientPool()
         client = PythonClient()
         client.namespace['__shell__'] = self
         self._clients.register(client)
         # Hack to be able to load file created with older versions:
         self._clients.add(client, 'direct python')
-
         # Hack to make debugging easier
         self.pyclient = client
-
-    _resize_pending = False
-    _new_size = None
-    def on_size(self, event):
-        if not self.do_resize:
-            return
-
-        # Note that resize involves computing all line breaks and is
-        # therefore a very costly operation. We therefore try to avoid
-        # unnecessary resize events.
-        self._new_size = event.Size
-        if self._resize_pending:
-            return
-        self._resize_pending = True
-        wx.CallAfter(self._adjust_size)
-    
-    def _adjust_size(self):
-        self._resize_pending = False
-        maxw = self._new_size[0]
-        if maxw == self._maxw:
-            return
-        self.set_maxw(maxw)
-        self.keep_cursor_on_screen()
 
     def create_builder(self):
         return Builder(
             self.model,
             clients=self._clients,
-            device=WxDevice(),
+            device=TESTDEVICE,
             maxw=self._maxw)
 
     def print_temp(self, text):
@@ -855,8 +816,23 @@ class NBView(_WXTextView):
             except NotFound:
                 pass
             return
+        elif action in ('shift', 'unshift'):
+            model = self.model
+            index = self.index
+            if self.has_selection():
+                s1, s2 = sorted(self.selection)
+            else:
+                s1 = s2 = index
+            el, off = get_localroot(model.texel, s1)
+            row1 = get_weight(el, 2, s1 - off)
+            row2 = get_weight(el, 2, s2 - off)
+            if action == 'shift':
+                self.shift_rows(row1, row2)
+            else:
+                self.unshift_rows(row1, row2)
+            return
         if action not in ('complete', 'help'):
-            return _WXTextView.handle_action(self, action, shift)
+            return TextView.handle_action(self, action, shift)
         # complete or help#
         try:
             i0, cell = self.find_cell()
@@ -899,20 +875,87 @@ class NBView(_WXTextView):
         self.index = index
         self.adjust_viewport()
         
-    def on_char(self, event):
-        keycode = event.GetKeyCode()
-        ctrl = event.ControlDown()
-        shift = event.ShiftDown()
-        if keycode == wx.WXK_RETURN and shift and not ctrl:
-            try:
-                self.execute()
-            except NotFound:
-                pass
-        else:
-            _WXTextView.on_char(self, event)
-
     def find_cell(self):
         return find_cell(self.model.texel, self.index)
+
+    def insert_newline(self, index, style, parstyle):
+        model = self.model
+        row, col = self.current_position()
+        el, off = get_localroot(model.texel, index)
+        ls = find_weight(el, row, 2) + off
+        s = model.get_text(ls, index)
+        leading = s[:len(s) - len(s.lstrip())]
+        tmp = self._TextModel('\n' + leading, **style)
+        tmp.set_parstyle(0, parstyle)
+        self.insert(index, tmp)
+
+    def shift_rows(self, firstrow, lastrow, n=4):
+        model = self.model
+        has_selection = self.has_selection()
+        if has_selection:
+            s1, s2 = self.selection
+        else:
+            s1 = s2 = 0
+        index = self.index
+        el, off = get_localroot(model.texel, index)
+        ref_pos = find_weight(el, firstrow, 2) + off
+        for line in range(lastrow, firstrow-1, -1):
+            i = find_weight(el, line, 2) + off
+            model.insert_text(i, ' '*n)
+            if index >= i:
+                index += n
+            if s1 >= i:
+                s1 += n
+            if s2 >= i:
+                s2 += n
+        self.index = index
+        if has_selection:
+            self.selection = (s1, s2)
+        self.add_undo((self._unshift_rows, firstrow, lastrow, n, ref_pos))
+
+    def _unshift_rows(self, firstrow, lastrow, n, ref_pos=None):
+        has_selection = self.has_selection()
+        if has_selection:
+            s1, s2 = self.selection
+        else:
+            s1 = s2 = 0
+        index = self.index
+        memo = []
+        model = self.model
+        el, off = get_localroot(model.texel, ref_pos if ref_pos is not None else index)
+        for line in reversed(list(range(firstrow, lastrow+1))):
+            i = find_weight(el, line, 2) + off
+            for j in range(i, i+n+1):
+                if j > len(model): break
+                if model.get_text(j, j+1) != ' ': break
+            memo.append(model.remove(i, j))
+            if index > i:
+                index = i+max(0, index-j)
+            if s1 > i:
+                s1 = i+max(0, s1-j)
+            if s2 > i:
+                s2 = i+max(0, s2-j)
+        self.index = index
+        if has_selection:
+            self.selection = (s1, s2)
+        assert len(memo) == lastrow-firstrow+1
+        return self._undo_unshift, firstrow, memo, n, ref_pos
+
+    def unshift_rows(self, firstrow, lastrow, n=4):
+        el, off = get_localroot(self.model.texel, self.index)
+        ref_pos = find_weight(el, firstrow, 2) + off
+        self.add_undo(self._unshift_rows(firstrow, lastrow, n, ref_pos))
+
+    def _undo_unshift(self, firstrow, memo, n, ref_pos=None):
+        model = self.model
+        lastrow = firstrow+len(memo)-1
+        memo = list(memo)
+        el, off = get_localroot(model.texel, ref_pos if ref_pos is not None else self.index)
+        for line in reversed(list(range(firstrow, lastrow+1))):
+            i = find_weight(el, line, 2) + off
+            model.insert(i, memo[0])
+            memo = memo[1:]
+        return self._unshift_rows, firstrow, lastrow, n, ref_pos
 
     def execute(self):
         self.clear_temp()
@@ -966,24 +1009,24 @@ class NBView(_WXTextView):
                 # We can't insert cells inside cells. Therefore we
                 # remove all outer cells from what we insert.
                 texel = grouped(strip_cells(textmodel.texel))
-                _WXTextView.insert(self, i, mk_textmodel(texel))
+                TextView.insert(self, i, mk_textmodel(texel))
             else:
-                _WXTextView.insert(self, i, textmodel)
+                TextView.insert(self, i, textmodel)
         else:
             if hascells:
-                _WXTextView.insert(self, i, textmodel)
+                TextView.insert(self, i, textmodel)
             else:
                 cell = self.ScriptingCell(NULL_TEXEL, NULL_TEXEL)
-                _WXTextView.insert(self, i, mk_textmodel(cell))
-                _WXTextView.insert(self, i+1, textmodel)
+                TextView.insert(self, i, mk_textmodel(cell))
+                TextView.insert(self, i+1, textmodel)
 
     def undo(self):
         self.clear_temp()
-        _WXTextView.undo(self)
-                
+        TextView.undo(self)
+
     def redo(self):
         self.clear_temp()
-        _WXTextView.redo(self)
+        TextView.redo(self)
 
     def remove_output(self):
         self.transform(strip_output)
@@ -1019,14 +1062,84 @@ class NBView(_WXTextView):
         self.insert(i, mk_textmodel(cell))
         self.index = i+1
 
+
+
+class NBView(WxMixin, _NBView):
+
+    def __init__(self, parent, id=-1,
+                 pos=wx.DefaultPosition, size=wx.DefaultSize, style=0,
+                 resize=False, filename=None, maxw=None, logfile=None):
+        self.init_clients()
+        self.do_resize = resize
+        WxMixin.__init__(self, parent, id, pos, size, style)
+        TextView.__init__(self)
+
+        global wleft
+        global scalefactor
+        if wleft is None:
+            dc = wx.ScreenDC()
+            dc.SetFont(self.Font)
+            scalefactor = dc.CharWidth / float(dc.Font.GetPointSize())
+            wleft = dc.GetTextExtent("123456789012345")[0]
+
+        if maxw is None:
+            dc = wx.ScreenDC()
+            dc.SetFont(self.Font)
+            maxw = dc.GetTextExtent("123456789012345")[0]*8
+        self.maxw = maxw
+
+        if filename is not None:
+            self._load(filename)
+        self.actions[(wx.WXK_TAB, False, False)] = 'complete'
+        self.actions[(wx.WXK_RETURN, True, False)] = 'execute'
+        self.actions[(wx.WXK_RETURN, False, False)] = 'insert_newline'
+        self.actions[(2, True, False)] = 'split_cell'
+        self.actions[(8, True, False)] = 'help'
+
+    def create_builder(self):
+        return Builder(
+            self.model,
+            clients=self._clients,
+            device=WxDevice(),
+            maxw=self._maxw)
+
+    _resize_pending = False
+    _new_size = None
+
+    def on_size(self, event):
+        if not self.do_resize:
+            return
+        self._new_size = event.Size
+        if self._resize_pending:
+            return
+        self._resize_pending = True
+        wx.CallAfter(self._adjust_size)
+
+    def _adjust_size(self):
+        self._resize_pending = False
+        maxw = self._new_size[0]
+        if maxw == self._maxw:
+            return
+        self.set_maxw(maxw)
+        self.keep_cursor_on_screen()
+
+    def on_char(self, event):
+        keycode = event.GetKeyCode()
+        ctrl = event.ControlDown()
+        shift = event.ShiftDown()
+        print("on_char", keycode, ctrl, shift)
+        if keycode == wx.WXK_RETURN and shift and not ctrl:
+            try:
+                self.execute()
+            except NotFound:
+                pass
+        else:
+            WxMixin.on_char(self, event)
+
     def to_clipboard(self, textmodel):
         if 0:
-            # Storing composite data is often problematic and varies
-            # by platform and version. Plain text seems to be more
-            # stable. The following code might be useful for
-            # debugging.
             text = textmodel.get_text()
-            plain = wx.TextDataObject()        
+            plain = wx.TextDataObject()
             plain.SetText(text)
             if wx.TheClipboard.Open():
                 wx.TheClipboard.SetData(plain)
@@ -1035,11 +1148,9 @@ class NBView(_WXTextView):
             else:
                 print("failed")
             return
-        
-        # rewrite to add bitmap capabilies
-        data = wx.DataObjectComposite()        
-        
-        # We add image data is first (=preferred) option 
+
+        data = wx.DataObjectComposite()
+
         texel = textmodel.texel
         if isinstance(texel, BitmapRGB):
             w, h = texel.size
@@ -1048,7 +1159,7 @@ class NBView(_WXTextView):
             _data.SetBitmap(bmp)
             data.Add(_data)
 
-        elif isinstance(texel, BitmapRGBA):            
+        elif isinstance(texel, BitmapRGBA):
             w, h = texel.size
             im = wx.Image(w, h, texel.data)
             im.SetAlphaBuffer(texel.alpha)
@@ -1058,29 +1169,21 @@ class NBView(_WXTextView):
             data.Add(_data)
 
         # Strange bug on ubuntu with wx 4.2.2: our custom data must be
-        # before plain text. Otherwise CLIPBOARD is not changed. This
-        # bug is somehow confusing, because copy/paste behaves ok from
-        # one wx widget to the other of the same process. The system
-        # selections are however not changed (CLIPBOARD, PRIMARY,
-        # SECONDARY). If plain text is the last optioin, copying to
-        # CLIPBOARD works.  Copying text from a TextCtrl on the other
-        # hand changes CLIPBOARD and PRIMARY.
-                
+        # before plain text. Otherwise CLIPBOARD is not changed.
         pickled = wx.CustomDataObject("pytextmodel")
         pickled.SetData(pickle.dumps(textmodel))
         data.Add(pickled)
-            
+
         text = textmodel.get_text()
-        plain = wx.TextDataObject()        
+        plain = wx.TextDataObject()
         plain.SetText(text)
         data.Add(plain)
-        
+
         if wx.TheClipboard.Open():
             wx.TheClipboard.SetData(data)
             wx.TheClipboard.Close()
 
     def read_clipboard(self):
-        # add bitmap capabilities to the clipboard
         if wx.TheClipboard.IsOpened():
             return
         wx.TheClipboard.Open()
@@ -1092,16 +1195,15 @@ class NBView(_WXTextView):
             data = im.GetData()
             if im.HasAlpha():
                 alpha = im.GetAlpha()
-                texel = BitmapRGBA(data, alpha, bmp.Size)                
+                texel = BitmapRGBA(data, alpha, bmp.Size)
             else:
                 texel = BitmapRGB(data, bmp.Size)
             textmodel = mk_textmodel(texel)
         wx.TheClipboard.Close()
         if textmodel is None:
-            return _WXTextView.read_clipboard(self)            
+            return _WXTextView.read_clipboard(self)
         return textmodel
 
-        
 
 def init_testing(redirect=True):
     app = wx.App(redirect=redirect)
@@ -1230,7 +1332,7 @@ def test_10():
 
 
 def test_11():
-    ns = init_testing(redirect=False)
+    ns = init_testing(redirect=True) #False)
     model = ns['model']
     model.remove(0, len(model))
     tmp = TextModel(u'for a in range(16):\n    print(a)')
@@ -1439,6 +1541,62 @@ def test_19():
     assert s_old.startswith(cerealizerformat.magic)
     clone_old = cerealizerformat.loads(s_old)
     assert clone_old.get_text() == text_before
+
+
+def test_editing():
+    "insert_newline, shift, unshift, move_up/down work inside cells"
+    from .textmodel.texeltree import Text
+    # cell input: 'x = 1\n    y = 2' (length 15)
+    # model structure: NL(0) input(1..15) NL(16) output(17..16) NL(17)
+    # model.get_text() = '\nx = 1\n    y = 2\n\n'
+    cell = ScriptingCell(TextModel('x = 1\n    y = 2').texel, Text(''))
+    model = TextModel('')
+    model.insert(0, mk_textmodel(cell))
+    assert model.get_text() == '\nx = 1\n    y = 2\n\n'
+
+    view = _NBView()
+    view.set_model(model)
+
+    # position 15 = model position of '2' in '    y = 2' (last char of input)
+    # input starts at offset 1; local position 14 = last char → row=1, col=8
+    view.index = 15
+    row, col = view.current_position()
+    assert row == 1, row   # second line of input (0-based)
+    assert col == 8, col   # 8th position on line 1 ('2' is the 9th char, index 8)
+
+    # insert_newline: should produce '\n    ' (1 NL + 4 spaces copied from current line)
+    view.handle_action('insert_newline')
+    inserted = model.get_text(15, 20)
+    assert inserted == '\n    ', repr(inserted)
+    view.undo()
+    assert model.get_text() == '\nx = 1\n    y = 2\n\n'
+
+    # shift row 1: '    y = 2' → '        y = 2' (4 spaces prepended at model pos 7)
+    view.index = 15
+    view.handle_action('shift')
+    assert model.get_text(7, 11) == '    ', repr(model.get_text(7, 11))  # 4 new spaces
+    assert model.get_text(7, 16) == '        y', repr(model.get_text(7, 16))  # 8 spaces + 'y'
+    view.undo()
+    assert model.get_text() == '\nx = 1\n    y = 2\n\n'
+
+    # unshift row 1: '    y = 2' → 'y = 2' (4 spaces removed from model pos 7)
+    view.index = 15
+    view.handle_action('unshift')
+    assert model.get_text(7, 8) == 'y', repr(model.get_text(7, 8))  # no leading spaces
+    view.undo()
+    assert model.get_text() == '\nx = 1\n    y = 2\n\n'
+
+    # move_up from row 1 should land on row 0
+    view.index = 15
+    view.handle_action('move_up')
+    row2, col2 = view.current_position()
+    assert row2 == 0, row2
+
+    # move_down from row 0 should land on row 1
+    view.index = 5  # somewhere in 'x = 1' (model pos 5 = '1')
+    view.handle_action('move_down')
+    row3, col3 = view.current_position()
+    assert row3 == 1, row3
 
 
 def demo_00():

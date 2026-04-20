@@ -1,10 +1,11 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 
 from ..textmodel.viewbase import ViewBase, overridable_property
 from ..textmodel.modelbase import Model
 from ..textmodel.textmodel import dump_range
 from ..textmodel.texeltree import length, iter_childs
+from ..textmodel.weights import find_weight, get_weight
 from ..textmodel.utils import get_path
 from ..textmodel import TextModel
 from contextlib import contextmanager
@@ -27,6 +28,36 @@ def undo(info):
 
 
 inf = sys.maxsize
+
+
+def get_localroot(texel, i):
+    """Return (root, offset) — the content sub-texel that is the local root for position i.
+
+    For positions inside a container's content area, returns that content child and its
+    absolute offset, so that find_weight/get_weight give correct row counts there.
+    For positions outside any container, returns (texel, 0).
+    """
+    if texel.is_container:
+        j2c = 1
+        for content_child in texel.childs[1::2]:
+            j1c = j2c
+            j2c += length(content_child) + 1
+            if j1c <= i < j2c - 1:
+                return content_child, j1c
+        return texel, 0
+    if texel.is_group:
+        for j1, j2, child in iter_childs(texel):
+            if j1 <= i < j2:
+                if child.is_container:
+                    local_i = i - j1
+                    j2c = 1
+                    for content_child in child.childs[1::2]:
+                        j1c = j2c
+                        j2c += length(content_child) + 1
+                        if j1c <= local_i < j2c - 1:
+                            return content_child, j1 + j1c
+                break
+    return texel, 0
 def right_limit(texel, i0, i):
     if i <= i0 or i>= i0+length(texel):
         return inf 
@@ -369,70 +400,10 @@ class TextView(ViewBase, Model):
         self.refresh()
         self.notify_views('maxw_changed')
 
-    def indent_rows(self, firstrow, lastrow, n=4):
-        model = self.model
-        has_selection = self.has_selection()
-        if has_selection:
-            s1, s2 = self.selection
-        else:
-            s1 = s2 = 0
-        index = self.index
-        for line in range(lastrow, firstrow-1, -1): # indent
-            i = model.linestart(line)
-            model.insert_text(i, ' '*n)
-            if index >= i:
-                index += n
-            if s1 >= i:
-                s1 += n
-            if s2 >= i:
-                s2 += n
-        self.index = index
-        if has_selection:
-            self.selection = (s1, s2)            
-        info = self._dedent_rows, firstrow, lastrow, n
-        self.add_undo(info)
-
-    def _dedent_rows(self, firstrow, lastrow, n):
-        has_selection = self.has_selection()
-        if has_selection:
-            s1, s2 = self.selection
-        else:
-            s1 = s2 = 0
-        index = self.index
-        memo = []
-        model = self.model
-        for line in reversed(list(range(firstrow, lastrow+1))):
-            i = model.linestart(line)
-            for j in range(i, i+n+1):
-                if j > len(model): break
-                if model.get_text(j, j+1) != ' ': break
-            memo.append(model.remove(i, j))
-            if index > i:
-                index = i+max(0, index-j)
-            if s1 > i:
-                s1 = i+max(0, s1-j)
-            if s2 > i:
-                s2 = i+max(0, s2-j)
-        self.index = index
-        if has_selection:
-            self.selection = (s1, s2)
-            
-        assert len(memo) == lastrow-firstrow+1
-        return self._undo_dedent, firstrow, memo, n
-        
-    def dedent_rows(self, firstrow, lastrow, n=4):
-        info = self._dedent_rows(firstrow, lastrow, n)
-        self.add_undo(info)
-
-    def _undo_dedent(self, firstrow, memo, n):
-        model = self.model
-        lastrow = firstrow+len(memo)-1
-        memo = list(memo)
-        for line in reversed(list(range(firstrow, lastrow+1))):
-            i = model.linestart(line)
-            model.insert(i, memo[0])
-            memo = memo[1:]
-        return self._dedent_rows, firstrow, lastrow, n
+    def insert_newline(self, index, style, parstyle):
+        tmp = self._TextModel('\n', **style)
+        tmp.set_parstyle(0, parstyle)
+        self.insert(index, tmp)
 
     def compute_index(self, x, y):
         if y >= self.layout.height:
@@ -464,7 +435,6 @@ class TextView(ViewBase, Model):
         self.notify_views('current_style_changed')
 
     def handle_action(self, action, shift=False):
-        #print("action = ", action, shift)
         model = self.model
         index = self.index
         layout = self.layout
@@ -493,14 +463,6 @@ class TextView(ViewBase, Model):
 
         elif action == 'dump_boxes':
             layout.dump_boxes(0, 0, 0)
-        elif action == 'indent':
-            row1 = model.index2position(s1)[0]
-            row2 = model.index2position(s2)[0]
-            self.indent_rows(row1, row2)
-        elif action == 'dedent':
-            row1 = model.index2position(s1)[0]
-            row2 = model.index2position(s2)[0]
-            self.dedent_rows(row1, row2)            
         elif action == 'move_word_end':
             i = index
             n = len(model)
@@ -548,9 +510,15 @@ class TextView(ViewBase, Model):
         elif action == 'move_up':
             self.move_cursor_to(row-1, col, shift)
         elif action == 'move_line_start':
-            self.set_index(model.linestart(row), shift)
+            el, off = get_localroot(model.texel, index)
+            self.set_index(find_weight(el, row, 2) + off, shift)
         elif action == 'move_line_end':
-            self.set_index(model.linestart(row)+model.linelength(row)-1, shift)
+            el, off = get_localroot(model.texel, index)
+            try:
+                le = find_weight(el, row + 1, 2) - 1
+            except Exception:
+                le = length(el) - 1
+            self.set_index(le + off, shift)
         elif action == 'move_page_down':
             _, height = self.get_client_size()
             i = self.compute_index(x, y + height / self.zoom)
@@ -566,18 +534,7 @@ class TextView(ViewBase, Model):
         elif action == 'select_all':
             self.selection = (0, len(model))
         elif action == 'insert_newline':
-           tmp = self._TextModel('\n', **style)
-           tmp.set_parstyle(0, parstyle)
-           indent = model.get_indent(index)
-           tmp.set_indent(0, indent)
-           self.insert(index, tmp)            
-        elif action == 'insert_newline_indented':
-            i = model.linestart(row)
-            s = model.get_text(i, index)
-            l = s[:len(s)-len(s.lstrip())]
-            tmp = self._TextModel('\n'+l, **style)
-            tmp.set_parstyle(0, parstyle)
-            self.insert(index, tmp)            
+            self.insert_newline(index, style, parstyle)
         elif action == 'backspace':
             if self.has_selection():
                 j1, j2 = self.model.expand_range(s1-1, s2)
@@ -609,7 +566,11 @@ class TextView(ViewBase, Model):
         elif action == 'redo':
             self.redo()
         elif action == 'del_line_end':
-            i = model.linestart(row)+model.linelength(row)-1
+            el, off = get_localroot(model.texel, index)
+            try:
+                i = find_weight(el, row + 1, 2) - 1 + off
+            except Exception:
+                i = length(el) - 1 + off
             if i == index:
                 i += 1
             i = min(i, right_limit(model.texel, 0, index))
@@ -808,24 +769,28 @@ class TextView(ViewBase, Model):
         return self._index
 
     def current_position(self):
-        # Returns the cursorposition as tuple (row, col)
         model = self.model
         i = self.index
         if model is None or i == 0:
             return 0, 0
-        return model.index2position(i)
+        el, off = get_localroot(model.texel, i)
+        local_i = i - off
+        row = get_weight(el, 2, local_i)
+        col = local_i - find_weight(el, row, 2)
+        return row, col
 
     def move_cursor_to(self, row, col, extend=False, update=True):
-        # Moves cursor to (row, col). If this position is non existent
-        # the next possible value is selected.
-
-        # extend: extend selection
-        # update: update selection 
-
         model = self.model
-        row = max(0, min(row, model.nlines()-1))
-        col = max(0, min(col, model.linelength(row)-1))
-        self.set_index(model.position2index(row, col), extend, update)
+        el, off = get_localroot(model.texel, self.index)
+        nlines = el.weights[2] + 1
+        row = max(0, min(row, nlines - 1))
+        ls = find_weight(el, row, 2)
+        try:
+            ll = find_weight(el, row + 1, 2) - ls
+        except Exception:
+            ll = length(el) - ls
+        col = max(0, min(col, ll - 1))
+        self.set_index(off + ls + col, extend, update)
 
     def get_selection(self):
         return self._selection
