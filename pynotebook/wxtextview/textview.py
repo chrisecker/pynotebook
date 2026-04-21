@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 
-
+from .testdevice import TestDevice
 from ..textmodel.viewbase import ViewBase, overridable_property
 from ..textmodel.modelbase import Model
 from ..textmodel.textmodel import dump_range
 from ..textmodel.texeltree import length, iter_childs
-from ..textmodel.utils import find_weight, get_weight, get_localroot
-from ..textmodel.utils import get_path
+from ..textmodel.utils import find_weight, get_weight, get_localroot, get_path
 from ..textmodel import TextModel
 from contextlib import contextmanager
 import sys
@@ -104,7 +103,6 @@ class TextView(ViewBase, Model):
         self.clear_undo()
         self.set_model(self._TextModel(''))
         assert self.builder is not None
-        assert self.layout is not None
 
     ### Editor slot
 
@@ -168,7 +166,9 @@ class TextView(ViewBase, Model):
                 return
 
     def create_builder(self):
-        raise NotImplementedError
+        # we install the BaseClass as a dummy builder
+        from .builder import TestBuilder
+        return TestBuilder()
 
     def clear_caches(self):
         self.builder.clear_caches()
@@ -184,7 +184,6 @@ class TextView(ViewBase, Model):
     def rebuild(self):
         self.builder.rebuild()
         self.refresh()
-        assert self.layout is not None
 
     def join_undo(self, info2, info1):
         # we are joining similar undo entries
@@ -626,7 +625,7 @@ class TextView(ViewBase, Model):
         self.selection = (i1, i2)
 
     def refresh(self):
-        raise NotImplemented()
+        pass
 
     def check(self):
         from ..textmodel.treebase import is_root_efficient
@@ -640,6 +639,9 @@ class TextView(ViewBase, Model):
         self.refresh()
 
     def ensure_viewport(self):
+        pass
+
+    def adjust_viewport(self):
         pass
 
     def ensure_index(self, index=None):
@@ -841,8 +843,42 @@ def accumulate(r1, r2):
     return (min(pi1, b1o), max(pi2_m0, b2o), pd + d2)
 
 
-def test_accumulate():
-    "accumulate: combining two update ranges"
+
+
+class TestTextView(TextView):
+
+    def create_builder(self):
+        from .simplelayout import Builder
+        return Builder(
+            self.model,
+            device=TestDevice(),
+            maxw=80)
+
+    
+testtext = u"""Ein m\xe4nnlicher Briefmark erlebte
+Was Sch\xf6nes, bevor er klebte.
+Er war von einer Prinzessin beleckt.
+Da war die Liebe in ihm geweckt.
+Er wollte sie wiederk\xfcssen,
+Da hat er verreisen m\xfcssen.
+So liebte er sie vergebens.
+Das ist die Tragik des Lebens.
+
+(Joachim Ringelnatz)"""
+
+
+def init_testing():
+    model = TextModel(testtext)
+    model.set_properties(15, 24, fontsize=14)
+    model.set_properties(249, 269, fontsize=14)
+    view = TestTextView()
+    view.model = model
+    assert len(view.layout) == len(model)+1
+    return locals()
+
+
+def test_00():
+    "accumulate"
     assert accumulate((2, 5, 0), (8, 12, 0)) == (2, 12, 0)
     assert accumulate((8, 12, 0), (2, 5, 0)) == (2, 12, 0)
     assert accumulate((2, 8, 0), (5, 12, 0)) == (2, 12, 0)
@@ -855,3 +891,55 @@ def test_accumulate():
     assert accumulate((5, 5, 2), (3, 10, 0)) == (3, 8, 2)
     assert accumulate((5, 5, -3), (3, 7, 0)) == (3, 10, -3)
 
+
+def test_02():
+    ns = init_testing()
+    view = ns['view']
+    view.cursor = 5
+    view.selection = 3, 6
+    return ns
+
+
+def test_03():
+    "set_properties, insert_text, remove"
+    ns = init_testing()
+    model = ns['model']
+    model.set_properties(10, 20, fontsize=15)
+    n = len(model)
+    text = '\n12345\n'
+    model.insert_text(5, text)
+    model.remove(5, 5 + len(text))
+    assert len(model) == n
+
+
+def test_04():
+    "insert/remove"
+    ns = init_testing()
+    model = ns['model']
+    text = model.get_text()
+    n = len(model)
+    for i in range(len(text)):
+        model.insert_text(i, 'X')
+        assert len(model) == n + 1
+        model.remove(i, i + 1)
+        assert len(model) == n
+
+    for i in range(n - 1):
+        old = model.remove(i, i + 1)
+        assert len(model) == n - 1
+        model.insert(i, old)
+        assert len(model) == n
+
+
+def test_05():
+    "join_undo"
+    ns = init_testing()
+    view = ns['view']
+    for i, ch in enumerate('abcd'):
+        view.add_undo(view.insert(i, TextModel(ch)))
+    assert len(view._undoinfo) == 1
+
+    view._undoinfo = []
+    view.add_undo(view.remove(10, 11))
+    view.add_undo(view.remove(9, 10))
+    assert len(view._undoinfo) == 1

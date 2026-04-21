@@ -921,7 +921,7 @@ def test_22():
     
 def test_23():
     "get_parstyle inside a container"
-    from .texeltree import Fraction, NewLine, Group, grouped
+    from .texeltree import Fraction
     # Paragraph: [container] [NL with parstyle]
     nl = NewLine({'color': 'red'})
     nl = nl.set_parstyle({'alignment': 'left'})
