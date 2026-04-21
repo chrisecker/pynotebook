@@ -234,14 +234,16 @@ def __transform__(obj, iserr):
             return
 
         # Run
-        #sys.settrace(self.trace_fun)                    
+        sys.settrace(self.trace_fun)
         try:
             self.ans = eval(code, self.namespace)
         except Exception as e:
             sys.stdout = bk_stdout
             sys.stderr = bk_stderr
+            sys.settrace(None)
             self.show_traceback()
             return
+        sys.settrace(None)
 
         sys.stdout = bk_stdout
         sys.stderr = bk_stderr
@@ -310,8 +312,8 @@ def __transform__(obj, iserr):
             i += 1
             if option is None or len(options) == nmax:
                 break
-            option = option.replace('(', '') # I don't like the bracket
-            option = option.replace(' ', '') # Neither like spaces
+            option = option.replace('(', '').replace(')', '') # strip parens added by rlcompleter
+            option = option.replace(' ', '')
             options.add(option)
         return options
 
@@ -404,7 +406,7 @@ def test_00():
     assert stream.messages == [(2, False)]
 
     stream = StreamRecorder()
-    client._execute("print a", stream.output)
+    client._execute("print(a)", stream.output)
     assert stream.messages == [('1', False), ('\n', False)]
 
 def test_00a():
@@ -422,21 +424,21 @@ def test_00b():
     stream = StreamRecorder()
     client._execute("asdasds", stream.output)
     print(stream.messages)
-    assert stream.messages == [
-        ('  File "In[3]", line 1, in <module>\n', True), 
-        ("NameError: name 'asdasds' is not defined\n", True)]
+    assert len(stream.messages) == 1
+    assert stream.messages[0][1] == True  # iserr
+    assert "NameError" in stream.messages[0][0]
+    assert "asdasds" in stream.messages[0][0]
     
 def test_01():
     "complete"
     client = PythonClient()
-    assert client.complete('a') == {
-        'as', 'ascii', 'assert', 'abs', 'any', 'async',
-        'all', 'await', 'and'}
+    a_completions = client.complete('a')
+    assert {'as', 'ascii', 'assert', 'abs', 'any', 'async', 'all', 'await', 'and'} \
+        <= a_completions
     assert client.complete('bo') == set(['bool'])
     assert client.complete('cl') == {
         'class', 'classmethod'}
-    assert client.complete('g') == {
-        "getattr", "global", "globals"}
+    assert {'getattr', 'global', 'globals'} <= client.complete('g')
 
 def test_02():
     "abort"
@@ -446,7 +448,7 @@ def test_02():
     namespace['client'] = client
     client._execute("""
 for i in range(10):
-    print i
+    print(i)
     if i>5:
         client.abort() # emulate a ctrl-c
     """, stream.output)

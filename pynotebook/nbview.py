@@ -18,6 +18,7 @@ from .wxtextview.wxdevice import WxDevice
 from .wxtextview.wxtextview import WXTextView as _WXTextView, WxMixin
 from .wxtextview.textview import TextView, get_localroot
 from .textmodel.weights import find_weight, get_weight
+from .textmodel.utils import prev_newline
 
 from .nbtexels import Cell, ScriptingCell, TextCell, Graphics, find_cell, \
     mk_textmodel, NotFound, strip_output, split_cell, BitmapRGB, BitmapRGBA
@@ -880,10 +881,8 @@ class _NBView(TextView):
 
     def insert_newline(self, index, style, parstyle):
         model = self.model
-        row, col = self.current_position()
-        el, off = get_localroot(model.texel, index)
-        ls = find_weight(el, row, 2) + off
-        s = model.get_text(ls, index)
+        j = prev_newline(model.texel, index, descend_containers=True) + 1
+        s = model.get_text(j, index)
         leading = s[:len(s) - len(s.lstrip())]
         tmp = self._TextModel('\n' + leading, **style)
         tmp.set_parstyle(0, parstyle)
@@ -1332,7 +1331,7 @@ def test_10():
 
 
 def test_11():
-    ns = init_testing(redirect=True) #False)
+    ns = init_testing(redirect=False)
     model = ns['model']
     model.remove(0, len(model))
     tmp = TextModel(u'for a in range(16):\n    print(a)')
@@ -1375,6 +1374,8 @@ def test_11():
     # when clicking right to "print(a)" the cursor should be placed
     # behind ")"
     assert view.layout.get_index(230, 35) == 33
+
+    print(repr(model.get_text()))
     
     
     return ns
@@ -1543,7 +1544,7 @@ def test_19():
     assert clone_old.get_text() == text_before
 
 
-def test_editing():
+def test_20():
     "insert_newline, shift, unshift, move_up/down work inside cells"
     from .textmodel.texeltree import Text
     # cell input: 'x = 1\n    y = 2' (length 15)
@@ -1597,6 +1598,19 @@ def test_editing():
     view.handle_action('move_down')
     row3, col3 = view.current_position()
     assert row3 == 1, row3
+
+def test_21():
+    "insert_newline"
+    view = _NBView()
+    model = view.model
+    tmp = TextModel(u'for a in range(16):\n    print(a)')
+    cell = ScriptingCell(tmp.texel, Text(u'<output>'))
+    model.insert(len(model), mk_textmodel(cell))
+    view.set_index(1)
+    n = len(model)
+    # pos 33 is sep2 (after '    print(a)'); leading spaces = 4
+    view.insert_newline(33, {}, {})
+    assert len(model) == n+5  # '\n    ' inserted
 
 
 def demo_00():
