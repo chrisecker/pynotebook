@@ -428,10 +428,11 @@ class TextView(ViewBase, Model):
 
         if action == 'dump_info':
             dump_range(model.texel, e1, e2)
-            row, col = model.index2position(index)
+            row, col, i0 = model.index2position(index)
             print("index=", index)
             print("row=", row)
             print("col=", col)
+            print("i0=", i0)
 
         elif action == 'dump_boxes':
             layout.dump_boxes(0, 0, 0)
@@ -461,36 +462,28 @@ class TextView(ViewBase, Model):
         elif action == 'move_left':
             self.set_index(index-1, shift)
         elif action == 'move_paragraph_end':
-            i = row
-            try:
-                while model.linelength(i) == 1:
-                    i += 1
-                while model.linelength(i) > 1:
-                    i += 1
-                self.move_cursor_to(i, 0, shift)
-            except IndexError:
-                self.set_index(len(model), shift)                    
+            i = model.linestart(index)
+            n = len(model)
+            while model.lineend(i) < n and model.linelength(i) == 1:
+                i = model.lineend(i) + 1
+            while model.lineend(i) < n and model.linelength(i) > 1:
+                i = model.lineend(i) + 1
+            self.set_index(i, shift)
         elif action == 'move_down':
             self.move_cursor_to(row+1, col, shift)
         elif action == 'move_paragraph_begin':
-            i = row-1
-            while i >= 0 and model.linelength(i) == 1:
-                i -= 1
-            while i >= 0 and model.linelength(i) > 1:
-                i -= 1
-            self.move_cursor_to(i+1, 0, shift)
+            i = model.linestart(index)
+            while i > 0 and model.linelength(model.linestart(i - 1)) == 1:
+                i = model.linestart(i - 1)
+            while i > 0 and model.linelength(model.linestart(i - 1)) > 1:
+                i = model.linestart(i - 1)
+            self.set_index(i, shift)
         elif action == 'move_up':
             self.move_cursor_to(row-1, col, shift)
         elif action == 'move_line_start':
-            el, off = get_localroot(model.texel, index)
-            self.set_index(find_weight(el, row, 2) + off, shift)
+            self.set_index(model.linestart(index), shift)
         elif action == 'move_line_end':
-            el, off = get_localroot(model.texel, index)
-            try:
-                le = find_weight(el, row + 1, 2) - 1
-            except Exception:
-                le = length(el) - 1
-            self.set_index(le + off, shift)
+            self.set_index(model.lineend(index), shift)
         elif action == 'move_page_down':
             _, height = self.get_client_size()
             i = self.compute_index(x, y + height / self.zoom)
@@ -563,7 +556,7 @@ class TextView(ViewBase, Model):
             j1, j2 = self.model.expand_range(i, index)
             self.remove(j1, j2)
         else:
-            #print keycode
+            print("action: ", repr(action))
             assert len(action) == 1 # single character
             del_selection()
             self.insert_text(self.index, action, **style)

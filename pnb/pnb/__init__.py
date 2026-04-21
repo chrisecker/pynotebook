@@ -165,14 +165,13 @@ class MainWindow(wx.Frame):
 
         # update statusbar
         i = self.shell.index
-        row, col = self.shell.model.index2position(i)
+        row, col, _ = self.shell.model.index2position(i)
         try:
             i, cell = self.shell.find_cell()
         except NotFound:
             self.StatusBar.SetStatusText('')
             return
-        row0, col0 = self.shell.model.index2position(i)
-        self.StatusBar.SetStatusText('Line: %i, Position: %i' % (row-row0, col))
+        self.StatusBar.SetStatusText('Line: %i, Position: %i' % (row, col))
 
     def new(self, event):
         "&New Notebook\tCtrl-N"

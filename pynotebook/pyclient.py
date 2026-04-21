@@ -42,7 +42,6 @@ def pycolorize(texel, styles=None, bgcolor='#FFFFFF'):
     model.texel = grouped([texel, NL]) # the NL is needed by
                                        # tokenizer. We have to remove
                                        # it in the end
-    position2index = model.position2index
     text = get_text(model.texel)
     instream = io.BytesIO(text.encode('utf-8')).readline
 
@@ -99,9 +98,6 @@ def pycolorize(texel, styles=None, bgcolor='#FFFFFF'):
             i1 = self.breaks[srow-1]+scol
             i2 = self.breaks[erow-1]+ecol
 
-            if debug:
-                assert i1 == position2index(srow-1, scol)
-                assert i2 == position2index(erow-1, ecol)
             try:
                 style = _styles[toktype]
             except:

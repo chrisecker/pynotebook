@@ -180,69 +180,47 @@ class TextModel(Model):
         """
         return expand_range(self.texel, s1, s2)
 
-    def position2index(self, row, col):
-        """Returns the index corresponding to *row* and *col*."""
-        i = find_weight(self.texel, row, 2)
-        if i is None:
-            raise IndexError(row)
-        return i+col
-
     def _lfromt(self, t):
         # for debugging
         splitter = t.split('\n')
         l = [len(s)+1 for s in splitter[:-1]]
         return l
 
+    def position2index(self, row, col, i0=0):
+        """Returns the index for (row, col) within the flow starting at i0."""
+        if i0 > 0:
+            root, _ = get_localroot(self.texel, i0)
+        else:
+            root = self.texel
+        try:
+            return i0 + find_weight(root, row, 2) + col
+        except NotFound:
+            raise IndexError(row)
+
     def index2position(self, i):
-        """Returns the (row, col)-tuple corresponding to index *i*."""
-        texel = self.texel
-        if i > length(texel):
-            raise IndexError(i)
-        if i < 0:
-            raise IndexError(i)
+        """Returns (row, col, i0) for index *i*, where i0 is the flow start."""
+        root, i0 = get_localroot(self.texel, i)
+        local_i = i - i0
+        row = get_weight(root, 2, local_i)
+        col = local_i - find_weight(root, row, 2)
+        return row, col, i0
 
-        row = get_weight(texel, 2, i)
-        assert type(row) is int
-        j = find_weight(texel, row, 2)
-        col = i-j
-        return row, col
+    def linestart(self, i):
+        """Returns the index where the line containing *i* starts."""
+        return self.prev_newline(i) + 1
 
-    def linestart(self, row):
-        """Returns the index where line number *row* starts."""
-        # TODO: would be better to have linestart(index)
-        try:
-            return find_weight(self.texel, row, 2)
-        except NotFound:
-            raise IndexError(row)
+    def lineend(self, i):
+        """Returns the NewLine position at the end of the line containing *i*,
+        or length of model if on the last line."""
+        return self.next_newline(i)
 
-    def lineend(self, row):
-        """Returns the index where line number *row* ends. The NewLine-marker
-           ist not included.  
-
-           >>> TextModel("").lineend(0) 
-           0 
-
-           >>> TextModel("x").lineend(0)
-           1
-        """
-        # TODO: would be better to have lineend(index)
-        try:
-            return find_weight(self.get_xtexel(), row+1, 2)-1
-        except NotFound:
-            raise IndexError(row)
-
-    def linelength(self, row):
-        """Returns the length of line *row*."""
-        # TODO: replace by lineend-linestart
-        try:
-            i1 = find_weight(self.texel, row, 2)
-        except NotFound:
-            raise IndexError(row)
-        try:
-            i2 = find_weight(self.texel, row+1, 2)
-        except NotFound:
-            i2 = len(self)
-        return i2-i1
+    def linelength(self, i):
+        """Returns the length of the line containing *i*, including the NL if present."""
+        end = self.lineend(i)
+        start = self.linestart(i)
+        if end < len(self):
+            return end - start + 1
+        return end - start
 
     def clear_styles(self, i1, i2):
         return self.set_styles(i1, [(i2-i1, EMPTYSTYLE)])
@@ -563,8 +541,9 @@ def test_01():
 
 
         for i in range(len(text)):
-            row, col = t.index2position(i)
+            row, col, i0 = t.index2position(i)
             assert (row, col) == index2position(text, i)
+            assert i0 == 0
 
         for i in range(len(text)):
             row, col = index2position(text, i)
@@ -587,7 +566,7 @@ def test_03():
     assert t3.get_text()[10] == '\n'
     assert t3.get_text()[11] == 'a'
     assert t3.linelength(0) == len(text1)+1 # the newline counts!
-    assert t3.linelength(1) == len(text2)
+    assert t3.linelength(len(text1)+1) == len(text2)
 
     t1.insert(0, t2)
     assert  t1.get_text() == text2+text1
@@ -610,7 +589,7 @@ def test_04():
 
     for i in range(len(t)):
 
-        assert t.index2position(i) == (row, col)
+        assert t.index2position(i) == (row, col, 0)
         if t.get_text(i, i+1) == '\n':
             row += 1
             col = 0

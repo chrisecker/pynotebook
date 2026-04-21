@@ -236,11 +236,7 @@ class Inspector(wx.Frame, ViewBase):
         textmodel = textview.model
         i1, i2  = sorted(textview.selection)
 
-        # inefficient way to find the next NL
-        row, col = textmodel.index2position(i2)
-        tmp = textmodel.lineend(row)
-        i2 = tmp+1 # the newline is always at lineend..lineend+1 (even
-                   # for ENDMARK!)
+        i2 = textmodel.lineend(i2) + 1
         stylesheet = textview.builder.stylesheet
         i = self.basestyle.Selection
         name = self._stylenames[i]

@@ -790,8 +790,7 @@ class _NBView(TextView):
     def get_word(self, j):
         # get word which ends at *j*
         model = self.model
-        row, col = model.index2position(j)
-        text = model.get_text(model.linestart(row), j)
+        text = model.get_text(model.linestart(j), j)
         i = len(text)-1
         while i>=0 and text[i] in string.ascii_letters+string.digits+"_.":
             i -= 1
@@ -1338,8 +1337,8 @@ def test_11():
     cell = ScriptingCell(tmp.texel, Text(u''))
     model.insert(len(model), mk_textmodel(cell))
 
-    assert model.index2position(0) == (0, 0)
-    assert model.index2position(1) == (0, 1)  # container NL-weight=0
+    assert model.index2position(0) == (0, 0, 0)
+    assert model.index2position(1) == (0, 0, 1)  # inside container cell
     cell = model.texel
 
     assert find_cell(model.texel, 1) == (0, cell)
