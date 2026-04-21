@@ -9,7 +9,7 @@ from .utils import iter_newlines, get_newlines, transform_range
 from .styles import updated_style, create_style, get_styles, set_styles, \
     get_style, set_properties, get_parstyles, set_parstyles, set_parproperties, \
     clear_properties, clear_parproperties, StyleIterator
-from .utils import find_weight, get_weight, next_newline, prev_newline, NotFound
+from .utils import find_weight, get_weight, next_newline, prev_newline, get_localroot, NotFound
 from .modelbase import Model
 import re
 
@@ -156,9 +156,20 @@ class TextModel(Model):
         """Return position of last NewLine strictly before *i*, or -1 if none."""
         return prev_newline(self.get_xtexel(), i)
 
+    def get_start(self, i):
+        """Return start of the local region: 0, or cell start if i is inside a container."""
+        _, offset = get_localroot(self.texel, i)
+        return offset
+
+    def get_end(self, i):
+        """Return end of the local region: length of model, or closing separator of the container cell."""
+        root, offset = get_localroot(self.texel, i)
+        return offset + length(root)
+
     def get_parstyle(self, i):
-        j = next_newline(self.get_xtexel(), i)
-        return get_texel(self.get_xtexel(), j).parstyle
+        xtexel = self.get_xtexel()
+        j = next_newline(xtexel, i)
+        return get_texel(xtexel, j).parstyle
 
     def expand_range(self, s1, s2):
         """Expand (s1, s2) so no container is only partially selected.
@@ -233,7 +244,6 @@ class TextModel(Model):
             i2 = len(self)
         return i2-i1
 
-
     def clear_styles(self, i1, i2):
         return self.set_styles(i1, [(i2-i1, EMPTYSTYLE)])
 
@@ -244,7 +254,6 @@ class TextModel(Model):
         memo = get_styles(self.texel, i1, i2)
         self.texel = grouped(
             set_properties(self.texel, i1, i2, properties))
-        #assert check(self.texel)
         self.notify_views('properties_changed', i1, i2)
         return memo
 
@@ -255,7 +264,6 @@ class TextModel(Model):
         memo = get_styles(self.texel, i1, i2)
         self.texel = grouped(
             clear_properties(self.texel, i1, i2, keys))
-        #assert check(self.texel)
         self.notify_views('properties_changed', i1, i2)
         return memo    
 
@@ -285,7 +293,7 @@ class TextModel(Model):
             set_parproperties(texel, i1, i2, properties))
         self._set_xtexel(t)        
         
-        # XXX This is controversial: should we restrict the change
+        # This is controversial: should we restrict the change
         # message to the range occupied by Texel or should we allow +1
         # to signal ENDMARK-changes?
         self.notify_views('properties_changed', i1, min(i2, n))
@@ -300,7 +308,6 @@ class TextModel(Model):
             clear_parproperties(texel, i1, i2, keys))
         assert length(t) == length(texel)
         self._set_xtexel(t)
-        #assert check(self.texel)
         self.notify_views('properties_changed', i1, i2)
         return memo    
         
@@ -318,7 +325,7 @@ class TextModel(Model):
             set_parstyles(texel, i, iterator))
         self._set_xtexel(t)        
 
-        # XXX This is controversial: should we restrict the change
+        # This is controversial: should we restrict the change
         # message to the range occupied by Texel or should we allow +1
         # to signal ENDMARK-changes?
         self.notify_views('properties_changed', i, min(i+m, n))        
@@ -434,12 +441,12 @@ class TextModel(Model):
 
 
 
-def pycolorize(rawtext, coding='latin-1'): # XXX is latin-1 ok?
+def pycolorize(rawtext, coding='latin-1'): # is latin-1 ok?
     # used for benchmarking
     assert type(rawtext) == bytes
     
     from io import BytesIO
-    rawtext += b'\n' # XXX still needed in py3?
+    rawtext += b'\n' # still needed in py3?
     instream = BytesIO(rawtext).readline
 
     import token, tokenize, keyword
@@ -891,6 +898,27 @@ def test_21():
     assert m.expand_range(1, 2) == (1, 2)
 
 
+def test_22():
+    "get_start / get_end"
+    m = TextModel("hello")
+    n = len(m)
+    assert m.get_start(0) == 0
+    assert m.get_end(0) == n
+
+    from .texeltree import Fraction
+    m = TextModel()
+    m.texel = Fraction(Text("a"), Text("b"))
+    n = len(m) 
+    assert m.get_start(0) == 0
+    assert m.get_start(1) == 1
+    assert m.get_start(2) == 1   # sep1 treated as end of cell 1
+    assert m.get_start(3) == 3
+    
+    assert m.get_end(0) == n
+    assert m.get_end(1) == 2     # closing sep of cell 1
+    assert m.get_end(3) == 4     # closing sep of cell 2
+
+    
 def test_23():
     "get_parstyle inside a container"
     from .texeltree import Fraction, NewLine, Group, grouped

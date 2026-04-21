@@ -5,7 +5,7 @@ from ..textmodel.viewbase import ViewBase, overridable_property
 from ..textmodel.modelbase import Model
 from ..textmodel.textmodel import dump_range
 from ..textmodel.texeltree import length, iter_childs
-from ..textmodel.utils import find_weight, get_weight
+from ..textmodel.utils import find_weight, get_weight, get_localroot
 from ..textmodel.utils import get_path
 from ..textmodel import TextModel
 from contextlib import contextmanager
@@ -29,27 +29,6 @@ def undo(info):
 
 inf = sys.maxsize
 
-
-def get_localroot(texel, i, i0=0):
-    """Return (root, offset) — the content sub-texel that is the local root for position i.
-
-    For positions inside a container's content area, returns that content child and its
-    absolute offset, so that find_weight/get_weight give correct row counts there.
-    For positions outside any container, returns (texel, 0).
-    """
-    if texel.is_container:
-        j2 = i0+1
-        for child in texel.childs[1::2]:
-            j1 = j2
-            j2 += length(child) + 1
-            if j1 <= i < j2:
-                return child, j1
-        raise IndexError("Index %i exceeds length of texel (%i)"%(i, length(texel)))
-    if texel.is_group:
-        for j1, j2, child in iter_childs(texel):
-            if j1 <= i-i0 < j2:
-                return get_localroot(child, i, i0+j1)
-    return texel, i0
 
 
 def right_limit(texel, i0, i):

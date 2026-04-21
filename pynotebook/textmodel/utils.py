@@ -54,6 +54,30 @@ def get_weight(texel, windex, i):
 
 
 
+def get_localroot(texel, i, i0=0):
+    """Return (root, offset) for the local coordinate system at position i.
+
+    Inside a container's content area: returns (content_child, cell_start).
+    Outside any container: returns (texel, i0).
+    """
+    if texel.is_container:
+        j2 = i0 + 1
+        for child in texel.childs[1::2]:
+            j1 = j2
+            j2 += length(child) + 1
+            if j1 <= i < j2:
+                return child, j1
+        return texel, i0
+    if texel.is_group:
+        for j1, j2, child in iter_childs(texel):
+            if j1 <= i - i0 < j2:
+                result = get_localroot(child, i, i0 + j1)
+                if result[0] is not child:
+                    return result
+                break
+    return texel, i0
+
+
 def iter_leafes(texel, i, descend_containers=False):
     """Iterates through all leaf-elements starting at i. """
 
@@ -442,6 +466,44 @@ def test_09():
         assert False
     except IndexError:
         pass
+
+
+def test_09b():
+    "get_localroot"
+    from .texeltree import T, NL, G, Fraction
+    f = Fraction(T('x'), T('y'))
+    # Fraction: sep0 at 0, T('x') at 1, sep1 at 2, T('y') at 3, sep2 at 4
+    root, off = get_localroot(f, 1)   # inside cell 1
+    assert root is f.childs[1] and off == 1
+    root, off = get_localroot(f, 3)   # inside cell 2
+    assert root is f.childs[3] and off == 3
+
+    g = G([T('a'), f, NL])
+    # T('a') at 0, f at [1,6), NL at 6
+    root, off = get_localroot(g, 0)   # outside container
+    assert root is g and off == 0
+    root, off = get_localroot(g, 1)   # opening separator of f → outside
+    assert root is g and off == 0
+    root, off = get_localroot(g, 6)   # outside container
+    assert root is g and off == 0
+    root, off = get_localroot(g, 2)   # inside cell 1 of f → g-pos 2 = f-pos 1
+    assert root is f.childs[1] and off == 2
+    root, off = get_localroot(g, 4)   # inside cell 2 of f → g-pos 4 = f-pos 3
+    assert root is f.childs[3] and off == 4
+
+    # get_start / get_end semantics via get_localroot
+    def get_start(texel, i):
+        _, offset = get_localroot(texel, i)
+        return offset
+    def get_end(texel, i):
+        r, offset = get_localroot(texel, i)
+        return offset + length(r)
+    assert get_start(g, 0) == 0
+    assert get_end(g, 0) == length(g)
+    assert get_start(g, 2) == 2   # cell 1 start
+    assert get_end(g, 2) == 3     # cell 1 closing sep
+    assert get_start(g, 4) == 4   # cell 2 start
+    assert get_end(g, 4) == 5     # cell 2 closing sep
 
 
 def test_10():

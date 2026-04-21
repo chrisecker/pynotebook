@@ -8,6 +8,8 @@ from .textmodel.texeltree import Group, Text, groups, grouped, insert, \
     length, get_text, join, get_rightmost, NULL_TEXEL, dump
 from .textmodel.iterators import iter_leafes
 from .textmodel.properties import overridable_property
+from .textmodel.utils import find_weight, get_weight, get_localroot
+
 from .wxtextview.boxes import Box, VGroup, VBox, Row, Rect, check_box, \
     NewlineBox, TextBox, TabulatorBox, replace_boxes, \
     ChildBox, calc_length, select_i_by_y
@@ -16,8 +18,7 @@ from .wxtextview.testdevice import TESTDEVICE
 from .wxtextview.builder import BuilderBase
 from .wxtextview.wxdevice import WxDevice
 from .wxtextview.wxtextview import WXTextView as _WXTextView, WxMixin
-from .wxtextview.textview import TextView, get_localroot
-from .textmodel.utils import find_weight, get_weight
+from .wxtextview.textview import TextView
 
 from .nbtexels import Cell, ScriptingCell, TextCell, Graphics, find_cell, \
     mk_textmodel, NotFound, strip_output, split_cell, BitmapRGB, BitmapRGBA
