@@ -21,7 +21,6 @@ do("pynotebook/textmodel/styles.py")
 do("pynotebook/textmodel/textmodel.py")
 do("pynotebook/textmodel/iterators.py")
 do("pynotebook/textmodel/properties.py")
-do("pynotebook/textmodel/weights.py")
 
 
 ### wxtextview

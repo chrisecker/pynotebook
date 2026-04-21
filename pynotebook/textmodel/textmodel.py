@@ -9,7 +9,7 @@ from .utils import iter_newlines, get_newlines, transform_range
 from .styles import updated_style, create_style, get_styles, set_styles, \
     get_style, set_properties, get_parstyles, set_parstyles, set_parproperties, \
     clear_properties, clear_parproperties, StyleIterator
-from .weights import find_weight, get_weight, find_newline, NotFound
+from .utils import find_weight, get_weight, next_newline, prev_newline, NotFound
 from .modelbase import Model
 import re
 
@@ -148,16 +148,16 @@ class TextModel(Model):
         """Returns the style at index *i*."""
         return get_style(self.get_xtexel(), i)
 
-    def find_newline(self, i):
-        """Return the position of the next newline at or after *i*.
+    def next_newline(self, i):
+        """Return position of first NewLine at or after *i*, or length if none."""
+        return next_newline(self.get_xtexel(), i)
 
-        Descends into containers when *i* lies inside one, so the result
-        is always on the same nesting level as *i*. 
-        """
-        return find_newline(self.get_xtexel(), i)
+    def prev_newline(self, i):
+        """Return position of last NewLine strictly before *i*, or -1 if none."""
+        return prev_newline(self.get_xtexel(), i)
 
     def get_parstyle(self, i):
-        j = find_newline(self.get_xtexel(), i)
+        j = next_newline(self.get_xtexel(), i)
         return get_texel(self.get_xtexel(), j).parstyle
 
     def expand_range(self, s1, s2):
@@ -325,7 +325,7 @@ class TextModel(Model):
         return memo
 
     def set_parstyle(self, i, style):
-        j = find_newline(self.get_xtexel(), i)
+        j = next_newline(self.get_xtexel(), i)
         return self.set_parstyles(i, [(j + 1 - i, style)])
 
     def increase_indent(self, i1, i2):
@@ -339,11 +339,11 @@ class TextModel(Model):
         return self.set_indents(i1, i2, new)
     
     def get_indent(self, i):
-        j = find_newline(self.get_xtexel(), i)
+        j = next_newline(self.get_xtexel(), i)
         return get_texel(self.get_xtexel(), j).indent
 
     def set_indent(self, i, indent):
-        j = find_newline(self.get_xtexel(), i)
+        j = next_newline(self.get_xtexel(), i)
         return self.set_indents(i, j + 1, [indent])
 
     def set_indents(self, i1, i2, indents):

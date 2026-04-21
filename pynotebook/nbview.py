@@ -17,8 +17,7 @@ from .wxtextview.builder import BuilderBase
 from .wxtextview.wxdevice import WxDevice
 from .wxtextview.wxtextview import WXTextView as _WXTextView, WxMixin
 from .wxtextview.textview import TextView, get_localroot
-from .textmodel.weights import find_weight, get_weight
-from .textmodel.utils import prev_newline
+from .textmodel.utils import find_weight, get_weight
 
 from .nbtexels import Cell, ScriptingCell, TextCell, Graphics, find_cell, \
     mk_textmodel, NotFound, strip_output, split_cell, BitmapRGB, BitmapRGBA
@@ -881,7 +880,7 @@ class _NBView(TextView):
 
     def insert_newline(self, index, style, parstyle):
         model = self.model
-        j = prev_newline(model.texel, index, descend_containers=True) + 1
+        j = model.prev_newline(index) + 1
         s = model.get_text(j, index)
         leading = s[:len(s) - len(s.lstrip())]
         tmp = self._TextModel('\n' + leading, **style)
@@ -1478,11 +1477,9 @@ def test_17():
     tmp = TextModel(u'Line 1\nLine 2\nLine 3')
     cell = TextCell(tmp.texel)
     model.insert(len(model), mk_textmodel(cell))
-    # Cell separators have NL-weight 0; lines inside the cell are
-    # accessible via find_newline, not linestart.
     i0 = 1   # inside "Line 1"
-    i1 = model.find_newline(i0) + 1   # start of "Line 2"
-    i2 = model.find_newline(i1) + 1   # start of "Line 3"
+    i1 = model.next_newline(i0) + 1   # start of "Line 2"
+    i2 = model.next_newline(i1) + 1   # start of "Line 3"
     assert model.get_parstyle(i0) == {}
     assert model.get_parstyle(i1) == {}
     assert model.get_parstyle(i2) == {}

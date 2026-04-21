@@ -5,7 +5,7 @@ from ..textmodel.viewbase import ViewBase, overridable_property
 from ..textmodel.modelbase import Model
 from ..textmodel.textmodel import dump_range
 from ..textmodel.texeltree import length, iter_childs
-from ..textmodel.weights import find_weight, get_weight
+from ..textmodel.utils import find_weight, get_weight
 from ..textmodel.utils import get_path
 from ..textmodel import TextModel
 from contextlib import contextmanager
