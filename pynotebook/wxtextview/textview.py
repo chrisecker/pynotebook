@@ -30,7 +30,7 @@ def undo(info):
 inf = sys.maxsize
 
 
-def get_localroot(texel, i):
+def get_localroot(texel, i, i0=0):
     """Return (root, offset) — the content sub-texel that is the local root for position i.
 
     For positions inside a container's content area, returns that content child and its
@@ -38,26 +38,20 @@ def get_localroot(texel, i):
     For positions outside any container, returns (texel, 0).
     """
     if texel.is_container:
-        j2c = 1
-        for content_child in texel.childs[1::2]:
-            j1c = j2c
-            j2c += length(content_child) + 1
-            if j1c <= i < j2c - 1:
-                return content_child, j1c
-        return texel, 0
+        j2 = i0+1
+        for child in texel.childs[1::2]:
+            j1 = j2
+            j2 += length(child) + 1
+            if j1 <= i < j2:
+                return child, j1
+        raise IndexError("Index %i exceeds length of texel (%i)"%(i, length(texel)))
     if texel.is_group:
         for j1, j2, child in iter_childs(texel):
-            if j1 <= i < j2:
-                if child.is_container:
-                    local_i = i - j1
-                    j2c = 1
-                    for content_child in child.childs[1::2]:
-                        j1c = j2c
-                        j2c += length(content_child) + 1
-                        if j1c <= local_i < j2c - 1:
-                            return content_child, j1 + j1c
-                break
-    return texel, 0
+            if j1 <= i-i0 < j2:
+                return get_localroot(child, i, i0+j1)
+    return texel, i0
+
+
 def right_limit(texel, i0, i):
     if i <= i0 or i>= i0+length(texel):
         return inf 

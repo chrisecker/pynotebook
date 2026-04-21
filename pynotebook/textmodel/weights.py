@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 # Utilities for working with weights
 #
@@ -43,7 +43,7 @@ def find_weight(texel, w, windex):
 
 
 
-def find_newline(texel, i):
+def find_newline(texel, i): # rename to "lineend"? -> we could have also "linestart"
     """
     Returns the position of the next newline at or after i.
 

@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 
 from .texeltree import Text, Group, NewLine, Tabulator, insert, takeout, \
@@ -198,6 +198,7 @@ class TextModel(Model):
 
     def linestart(self, row):
         """Returns the index where line number *row* starts."""
+        # TODO: would be better to have linestart(index)
         try:
             return find_weight(self.texel, row, 2)
         except NotFound:
@@ -213,6 +214,7 @@ class TextModel(Model):
            >>> TextModel("x").lineend(0)
            1
         """
+        # TODO: would be better to have lineend(index)
         try:
             return find_weight(self.get_xtexel(), row+1, 2)-1
         except NotFound:
@@ -220,6 +222,7 @@ class TextModel(Model):
 
     def linelength(self, row):
         """Returns the length of line *row*."""
+        # TODO: replace by lineend-linestart
         try:
             i1 = find_weight(self.texel, row, 2)
         except NotFound:

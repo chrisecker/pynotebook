@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from .texeltree import NewLine, length, iter_childs, fuse, grouped, \
     provides_childs, Group
 
@@ -36,6 +36,40 @@ def iter_newlines(texel, i, descend_containers=False):
             yield j1, j2, elem
 
 
+def next_newline(texel, i, descend_containers=False):
+    """Return absolute position of first NewLine at or after i, or None."""
+    if isinstance(texel, NewLine):
+        return 0 if i <= 0 else None
+    if texel.is_group or (descend_containers and texel.is_container):
+        for j1, j2, child in iter_childs(texel):
+            if j2 <= i:
+                continue
+            r = next_newline(child, i - j1, descend_containers)
+            if r is not None:
+                return r + j1
+    return None
+
+
+def prev_newline(texel, i, descend_containers=False):
+    """Return absolute position of last NewLine strictly before i, or -1 if none exists.
+
+    Returning -1 instead of None allows prev_newline(texel, i) + 1 to always
+    yield the start of the current line without a None check.
+    """
+    if i <= 0:
+        return -1
+    if isinstance(texel, NewLine):
+        return 0
+    if texel.is_group or (descend_containers and texel.is_container):
+        for j1, j2, child in reversed(list(iter_childs(texel))):
+            if j1 >= i:
+                continue
+            r = prev_newline(child, i - j1, descend_containers)
+            if r != -1:
+                return r + j1
+    return -1
+
+
 def iter_paragraphs(texel, i, descend_containers=False):
     """Break the texel material into paragraphs. Yields for each
     paragraph begin, end and list of texels.
@@ -65,6 +99,7 @@ def get_newlines(texel, i1, i2, _offset=0):
             yield _offset, texel
 
 
+    
 def transform_range(texel, i1, i2, fun):
     """Apply fun to all texels in [i1, i2), descending into containers.
 
@@ -305,3 +340,39 @@ def test_09():
         assert False
     except IndexError:
         pass
+
+
+def test_10():
+    "next_newline, prev_newline"
+    from .texeltree import T, NL, G, get_text
+    # text: 'ab\ncd\n', NL at positions 2 and 5
+    g = G([T('ab'), NL, T('cd'), NL])
+    assert next_newline(g, 0) == 2
+    assert next_newline(g, 2) == 2   # at a NL returns that position
+    assert next_newline(g, 3) == 5
+    assert next_newline(g, 5) == 5
+    assert next_newline(g, 6) is None
+
+    assert prev_newline(g, 0) == -1
+    assert prev_newline(g, 2) == -1  # strictly before
+    assert prev_newline(g, 3) == 2
+    assert prev_newline(g, 5) == 2
+    assert prev_newline(g, 6) == 5
+    # -1 sentinel: prev_newline(g, i) + 1 always gives linestart
+    assert prev_newline(g, 0) + 1 == 0
+    assert prev_newline(g, 3) + 1 == 3
+
+    # Container: G([T('a'), Fraction(T('x'),T('y')), NL])
+    # text: 'a\nx\ny\n\n', NLs inside Fraction at 1,3,5; outer NL at 6
+    from .texeltree import Fraction
+    f = Fraction(T('x'), T('y'))
+    g2 = G([T('a'), f, NL])
+    # without descend_containers: container is atomic, only outer NL visible
+    assert next_newline(g2, 0) == 6
+    assert next_newline(g2, 2) == 6    # inside container, but opaque
+    assert prev_newline(g2, 6) == -1   # container hides inner NLs
+    assert prev_newline(g2, 7) == 6
+    # with descend_containers: inner NLs visible
+    assert next_newline(g2, 2, True) == 3   # sep2 inside Fraction
+    assert prev_newline(g2, 4, True) == 3   # sep2
+    assert prev_newline(g2, 3, True) == 1   # sep1
