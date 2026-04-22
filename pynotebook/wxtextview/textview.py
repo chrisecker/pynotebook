@@ -29,6 +29,29 @@ def undo(info):
 inf = sys.maxsize
 
 
+class NullEditor:
+    """Always-active no-op editor; keeps the editor slot non-null.
+
+    Implements the full editor protocol with harmless defaults so that
+    TextView can call editor methods unconditionally without None-checks.
+    """
+    is_null = True
+
+    def __init__(self, docview):
+        self.docview = docview
+
+    def on_leftdown(self, event): return False
+    def on_motion(self, event):   return False
+    def on_leftup(self, event):   return False
+    def on_key(self, key, event): return False
+
+    def selected(self, i1, i2):   return None
+    def adjust_viewport(self):    return None
+
+    def copy(self):  self.docview.copy()
+    def cut(self):   self.docview.cut()
+    def paste(self): self.docview.paste()
+
 
 def right_limit(texel, i0, i):
     if i <= i0 or i>= i0+length(texel):
@@ -87,7 +110,6 @@ class TextView(ViewBase, Model):
     _zoom = 1.0
     _scrollrate = 10, 10
     _TextModel = TextModel
-    editor = None
 
     highlights  = []
     squiggles   = []
@@ -100,6 +122,7 @@ class TextView(ViewBase, Model):
 
     def __init__(self):
         ViewBase.__init__(self)
+        self.editor = NullEditor(self)
         self.clear_undo()
         self.set_model(self._TextModel(''))
         assert self.builder is not None
@@ -135,9 +158,9 @@ class TextView(ViewBase, Model):
         self.editor.reinstall(texel)
 
     def remove_editor(self):
-        if self.editor is not None:
-            self.editor = None
-            self.notify_views('editor_changed', None)
+        if not self.editor.is_null:
+            self.editor = NullEditor(self)
+            self.notify_views('editor_changed', self.editor)
             self.refresh()
 
     def update_editor(self):
@@ -145,7 +168,7 @@ class TextView(ViewBase, Model):
         editor = self.editor
         path = get_path(self.model.get_xtexel(), index)
 
-        if editor is not None:
+        if not editor.is_null:
             m = editor.match(self, path)
             if m is not None:
                 i1, i2, depth, texel = m
@@ -533,11 +556,11 @@ class TextView(ViewBase, Model):
                     j1, j2 = self.model.expand_range(i-1, i)
                     self.remove(j1, j2)
         elif action == 'copy':
-            self.editor.copy() if self.editor is not None else self.copy()
+            self.editor.copy()
         elif action == 'paste':
-            self.editor.paste() if self.editor is not None else self.paste()
+            self.editor.paste()
         elif action == 'cut':
-            self.editor.cut() if self.editor is not None else self.cut()
+            self.editor.cut()
         elif action == 'delete':
             if self.has_selection():
                 del_selection()
@@ -580,7 +603,6 @@ class TextView(ViewBase, Model):
             j1, j2 = self.model.expand_range(i, index)
             self.remove(j1, j2)
         else:
-            print("action: ", repr(action))
             assert len(action) == 1 # single character
             del_selection()
             self.insert_text(self.index, action, **style)
@@ -688,7 +710,7 @@ class TextView(ViewBase, Model):
         self.refresh()
 
     def inserted(self, model, i, n):
-        if self.editor is not None:
+        if not self.editor.is_null:
             self.remove_editor()
         self.rebuild_range(i, i, n)
         if debug:
@@ -705,7 +727,7 @@ class TextView(ViewBase, Model):
         self.refresh()
 
     def removed(self, model, i, text):
-        if self.editor is not None:
+        if not self.editor.is_null:
             self.remove_editor()
         self.rebuild_range(i, i, -len(text))
         n = len(text)
@@ -753,7 +775,7 @@ class TextView(ViewBase, Model):
             self.adjust_viewport()
             self.refresh()
             self.notify_views('index_changed')
-        if old != index and self.editor is not None:
+        if old != index and not self.editor.is_null:
             self.remove_editor()
         self.update_editor()
 
@@ -810,10 +832,9 @@ class TextView(ViewBase, Model):
         s1, s2 = sorted(selection)
         if s1 == s2:
             return []
-        if self.editor is not None:
-            result = self.editor.selected(s1, s2)
-            if result is not None:
-                return result
+        result = self.editor.selected(s1, s2)
+        if result is not None:
+            return result
         return [self.model.expand_range(s1, s2)]
 
     def start_selection(self):

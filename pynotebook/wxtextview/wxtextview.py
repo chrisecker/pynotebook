@@ -118,7 +118,7 @@ class WxMixin(wx.ScrolledWindow):
     # --- keyboard ---
 
     def on_char(self, event):
-        if self.editor is not None and self.editor.on_key(event.GetKeyCode(), event):
+        if self.editor.on_key(event.GetKeyCode(), event):
             return
         keycode = event.GetKeyCode()
         ctrl = event.ControlDown()
@@ -169,7 +169,7 @@ class WxMixin(wx.ScrolledWindow):
     # --- mouse ---
 
     def on_motion(self, event):
-        if self.editor is not None and self.editor.on_motion(event):
+        if self.editor.on_motion(event):
             return
         if not event.LeftIsDown():
             return event.Skip()
@@ -179,7 +179,7 @@ class WxMixin(wx.ScrolledWindow):
             self.set_index(i, extend=True)
 
     def on_leftdown(self, event):
-        if self.editor is not None and self.editor.on_leftdown(event):
+        if self.editor.on_leftdown(event):
             return
         x, y = self.window_to_content(event.Position)
         i = self.compute_index(x, y)
@@ -188,7 +188,7 @@ class WxMixin(wx.ScrolledWindow):
         self.SetFocus()
 
     def on_leftup(self, event):
-        if self.editor is not None and self.editor.on_leftup(event):
+        if self.editor.on_leftup(event):
             self.SetCursor(wx.Cursor(wx.CURSOR_IBEAM))
 
     def on_leftdclick(self, event):
