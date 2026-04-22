@@ -336,7 +336,27 @@ class TextView(ViewBase, Model):
     def _set_parstyles(self, i, styles):
         styles = self.model.set_parstyles(i, styles)
         return self._set_parstyles, i, styles
-    
+
+    def _set_indents(self, i1, i2, indents):
+        indents = self.model.set_indents(i1, i2, indents)
+        return self._set_indents, i1, i2, indents
+
+    def indent(self):
+        model = self.model
+        s1, s2 = sorted(self.selection) if self.has_selection() else (self.index, self.index)
+        i1 = model.linestart(s1)
+        i2 = model.lineend(s2) + 1
+        old = model.increase_indent(i1, i2)
+        self.add_undo((self._set_indents, i1, i2, old))
+
+    def dedent(self):
+        model = self.model
+        s1, s2 = sorted(self.selection) if self.has_selection() else (self.index, self.index)
+        i1 = model.linestart(s1)
+        i2 = model.lineend(s2) + 1
+        old = model.decrease_indent(i1, i2)
+        self.add_undo((self._set_indents, i1, i2, old))
+
     def transform(self, fun):
         # Apply a tranforming function to the texeltree. Can change
         # index.
@@ -526,6 +546,10 @@ class TextView(ViewBase, Model):
                 if i < len(self.model):
                     j1, j2 = self.model.expand_range(i, i+1)
                     self.remove(j1, j2)
+        elif action == 'indent':
+            self.indent()
+        elif action == 'dedent':
+            self.dedent()
         elif action == 'undo':
             self.undo()
         elif action == 'redo':

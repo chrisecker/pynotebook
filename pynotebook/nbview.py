@@ -816,20 +816,11 @@ class _NBView(TextView):
             except NotFound:
                 pass
             return
-        elif action in ('shift', 'unshift'):
-            model = self.model
-            index = self.index
-            if self.has_selection():
-                s1, s2 = sorted(self.selection)
-            else:
-                s1 = s2 = index
-            el, off = get_localroot(model.texel, s1)
-            row1 = get_weight(el, 2, s1 - off)
-            row2 = get_weight(el, 2, s2 - off)
-            if action == 'shift':
-                self.shift_rows(row1, row2)
-            else:
-                self.unshift_rows(row1, row2)
+        elif action == 'indent':
+            self.indent()
+            return
+        elif action == 'dedent':
+            self.dedent()
             return
         if action not in ('complete', 'help'):
             return TextView.handle_action(self, action, shift)
@@ -886,6 +877,28 @@ class _NBView(TextView):
         tmp = self._TextModel('\n' + leading, **style)
         tmp.set_parstyle(0, parstyle)
         self.insert(index, tmp)
+
+    def indent(self):
+        model = self.model
+        if self.has_selection():
+            s1, s2 = sorted(self.selection)
+        else:
+            s1 = s2 = self.index
+        el, off = get_localroot(model.texel, s1)
+        row1 = get_weight(el, 2, s1 - off)
+        row2 = get_weight(el, 2, s2 - off)
+        self.shift_rows(row1, row2)
+
+    def dedent(self):
+        model = self.model
+        if self.has_selection():
+            s1, s2 = sorted(self.selection)
+        else:
+            s1 = s2 = self.index
+        el, off = get_localroot(model.texel, s1)
+        row1 = get_weight(el, 2, s1 - off)
+        row2 = get_weight(el, 2, s2 - off)
+        self.unshift_rows(row1, row2)
 
     def shift_rows(self, firstrow, lastrow, n=4):
         model = self.model
@@ -1571,7 +1584,7 @@ def test_20():
 
     # shift row 1: '    y = 2' → '        y = 2' (4 spaces prepended at model pos 7)
     view.index = 15
-    view.handle_action('shift')
+    view.handle_action('indent')
     assert model.get_text(7, 11) == '    ', repr(model.get_text(7, 11))  # 4 new spaces
     assert model.get_text(7, 16) == '        y', repr(model.get_text(7, 16))  # 8 spaces + 'y'
     view.undo()
@@ -1579,7 +1592,7 @@ def test_20():
 
     # unshift row 1: '    y = 2' → 'y = 2' (4 spaces removed from model pos 7)
     view.index = 15
-    view.handle_action('unshift')
+    view.handle_action('dedent')
     assert model.get_text(7, 8) == 'y', repr(model.get_text(7, 8))  # no leading spaces
     view.undo()
     assert model.get_text() == '\nx = 1\n    y = 2\n\n'

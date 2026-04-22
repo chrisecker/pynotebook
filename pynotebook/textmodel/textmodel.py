@@ -1,21 +1,23 @@
 # -*- coding: utf-8 -*-
 
 
-from .texeltree import Text, Group, NewLine, Tabulator, insert, takeout, \
-    ENDMARK, is_homogeneous, provides_childs, grouped, length, iter_childs, depth, \
-    is_list_efficient, is_root_efficient, strip2list, EMPTYSTYLE, \
-    dump
-from .utils import iter_newlines, get_newlines, transform_range
-from .styles import updated_style, create_style, get_styles, set_styles, \
-    get_style, set_properties, get_parstyles, set_parstyles, set_parproperties, \
-    clear_properties, clear_parproperties, StyleIterator
-from .utils import find_weight, get_weight, next_newline, prev_newline, get_localroot, NotFound
+from .texeltree import (
+    Text, Group, NewLine, Tabulator, insert, takeout, ENDMARK, provides_childs,
+    grouped, length, iter_childs, strip2list, EMPTYSTYLE, dump)
+
+from .styles import (
+    updated_style, create_style, get_styles, set_styles, get_style,
+    set_properties, get_parstyles, set_parstyles, set_parproperties,
+    clear_properties, clear_parproperties, StyleIterator)
+
+from .utils import (
+    find_weight, get_weight, next_newline, prev_newline, 
+    get_localroot, NotFound, get_newlines, transform_range)
+
 from .modelbase import Model
 import re
 
 
-
-debug = 0
 
 
 def get_texel(texel, i):
@@ -149,20 +151,26 @@ class TextModel(Model):
         return get_style(self.get_xtexel(), i)
 
     def next_newline(self, i):
-        """Return position of first NewLine at or after *i*, or length if none."""
+        """Return position of first NewLine at or after *i*, or length if none.
+        """
         return next_newline(self.get_xtexel(), i)
 
     def prev_newline(self, i):
-        """Return position of last NewLine strictly before *i*, or -1 if none."""
+        """Return position of last NewLine strictly before *i*, or -1 if none.
+        """
         return prev_newline(self.get_xtexel(), i)
 
     def get_start(self, i):
-        """Return start of the local region: 0, or cell start if i is inside a container."""
+        """Return start of the local region: 0, or cell start if i is inside a
+        container.
+        """
         _, offset = get_localroot(self.texel, i)
         return offset
 
     def get_end(self, i):
-        """Return end of the local region: length of model, or closing separator of the container cell."""
+        """Return end of the local region: length of model, or closing
+        separator of the container cell.
+        """
         root, offset = get_localroot(self.texel, i)
         return offset + length(root)
 
@@ -179,12 +187,6 @@ class TextModel(Model):
         nested containers.
         """
         return expand_range(self.texel, s1, s2)
-
-    def _lfromt(self, t):
-        # for debugging
-        splitter = t.split('\n')
-        l = [len(s)+1 for s in splitter[:-1]]
-        return l
 
     def position2index(self, row, col, i0=0):
         """Returns the index for (row, col) within the flow starting at i0."""
@@ -211,11 +213,14 @@ class TextModel(Model):
 
     def lineend(self, i):
         """Returns the NewLine position at the end of the line containing *i*,
-        or length of model if on the last line."""
+        or length of model if on the last line.
+        """
         return self.next_newline(i)
 
     def linelength(self, i):
-        """Returns the length of the line containing *i*, including the NL if present."""
+        """Returns the length of the line containing *i*, including the NL if
+        present.
+        """
         end = self.lineend(i)
         start = self.linestart(i)
         if end < len(self):
@@ -223,6 +228,7 @@ class TextModel(Model):
         return end - start
 
     def clear_styles(self, i1, i2):
+        """Empties all the style-Attributes between *i1* and *i2*.""" 
         return self.set_styles(i1, [(i2-i1, EMPTYSTYLE)])
 
     def set_properties(self, i1, i2, **properties):
@@ -261,6 +267,7 @@ class TextModel(Model):
         """Sets the paragraph properties between *i1* and *i2*.
 
         Note that i2 can include the endmark, so that i2 <= len(self)+1.
+        Also note that only NL-texels between i1..i2 are changed. 
         """
         n = len(self)
         if not (0 <= i1 <= i2 <= n+1):
@@ -463,10 +470,6 @@ def pycolorize(rawtext, coding='latin-1'): # is latin-1 ok?
 
 
 
-if debug: # enable contract checking
-     import contract
-     contract.checkmod(__name__)
-
 
 text1 = "0123456789"
 text2 = "abcdefghijklmnopqrstuvwxyz"
@@ -525,6 +528,12 @@ def test_01():
         col = i-i0
         return row, col
 
+    def lfromt(t):
+        # for debugging
+        splitter = t.split('\n')
+        l = [len(s)+1 for s in splitter[:-1]]
+        return l
+
     texts = [text3]
     text = '0123456789'
     import random
@@ -537,7 +546,7 @@ def test_01():
 
     for text in texts:
         t = TextModel(text)
-        ll_text = t._lfromt(text)
+        ll_text = lfromt(text)
 
 
         for i in range(len(text)):

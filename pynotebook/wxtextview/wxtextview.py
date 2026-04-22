@@ -81,8 +81,8 @@ class WxMixin(wx.ScrolledWindow):
             (11, True, False): 'del_line_end',
             (127, True, False): 'del_word_left',
             (1,  True, False): 'select_all',
-            (9,  True, False): 'shift',
-            (21, True, False): 'unshift',
+            (9,  True, False): 'indent',
+            (21, True, False): 'dedent',
         }
 
     # --- wx hooks (satisfy TextView abstract interface) ---
