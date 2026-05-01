@@ -9,6 +9,7 @@ from ..textmodel.utils import find_weight, get_weight, get_localroot, get_path
 from ..textmodel import TextModel
 from contextlib import contextmanager
 import sys
+import types
 
 
 debug = 0
@@ -48,9 +49,24 @@ class NullEditor:
     def selected(self, i1, i2):   return None
     def adjust_viewport(self):    return None
 
+    def handle_action(self, action, shift, ctx): return False
+
     def copy(self):  self.docview.copy()
     def cut(self):   self.docview.cut()
     def paste(self): self.docview.paste()
+
+
+def _line_starts(model, i1, i2):
+    """Return list of line-start indices for all lines overlapping [i1, i2]."""
+    starts = []
+    ls = model.linestart(i1)
+    while ls <= i2:
+        starts.append(ls)
+        end = model.lineend(ls)
+        if end + 1 >= len(model):
+            break
+        ls = end + 1
+    return starts
 
 
 def right_limit(texel, i0, i):
@@ -380,6 +396,63 @@ class TextView(ViewBase, Model):
         old = model.decrease_indent(i1, i2)
         self.add_undo((self._set_indents, i1, i2, old))
 
+    def shift(self, i1, i2, n=4):
+        """Insert n spaces at each line start in index range [i1, i2]."""
+        model = self.model
+        has_sel = self.has_selection()
+        s1, s2 = self.selection if has_sel else (0, 0)
+        index = self.index
+        starts = _line_starts(model, i1, i2)
+        spaces = ' ' * n
+        for ls in reversed(starts):
+            model.insert_text(ls, spaces)
+            if index >= ls: index += n
+            if s1 >= ls: s1 += n
+            if s2 >= ls: s2 += n
+        self.index = index
+        if has_sel: self.selection = (s1, s2)
+        shifted = [ls + j * n for j, ls in enumerate(starts)]
+        self.add_undo((self._unshift, shifted, n))
+
+    def _unshift(self, starts, n):
+        model = self.model
+        has_sel = self.has_selection()
+        s1, s2 = self.selection if has_sel else (0, 0)
+        index = self.index
+        memo = []
+        for ls in reversed(starts):
+            j = ls
+            while j < ls + n and j < len(model) and model.get_text(j, j + 1) == ' ':
+                j += 1
+            memo.append(model.remove(ls, j))
+            rn = j - ls
+            if index > ls: index = ls + max(0, index - ls - rn)
+            if s1 > ls: s1 = ls + max(0, s1 - ls - rn)
+            if s2 > ls: s2 = ls + max(0, s2 - ls - rn)
+        self.index = index
+        if has_sel: self.selection = (s1, s2)
+        return self._undo_unshift, starts, memo, n
+
+    def unshift(self, i1, i2, n=4):
+        """Remove up to n leading spaces from each line start in index range [i1, i2]."""
+        info = self._unshift(_line_starts(self.model, i1, i2), n)
+        self.add_undo(info)
+
+    def _undo_unshift(self, starts, memo, n):
+        model = self.model
+        has_sel = self.has_selection()
+        s1, s2 = self.selection if has_sel else (0, 0)
+        index = self.index
+        for ls, removed in zip(starts, reversed(memo)):
+            rn = len(removed)
+            model.insert(ls, removed)
+            if index >= ls: index += rn
+            if s1 >= ls: s1 += rn
+            if s2 >= ls: s2 += rn
+        self.index = index
+        if has_sel: self.selection = (s1, s2)
+        return self._unshift, starts, n
+
     def transform(self, fun):
         # Apply a tranforming function to the texeltree. Can change
         # index.
@@ -449,7 +522,9 @@ class TextView(ViewBase, Model):
             style.pop(key, None)
         self.notify_views('current_style_changed')
 
-    def handle_action(self, action, shift=False):
+    handlers = []  # populated after class definition
+
+    def _build_ctx(self):
         model = self.model
         index = self.index
         layout = self.layout
@@ -457,155 +532,31 @@ class TextView(ViewBase, Model):
         parstyle = model.get_parstyle(index)
         row, col = self.current_position()
         rect = layout.get_rect(index, 0, 0)
-        x = rect.x1
-        y = rect.y1
+        x, y = rect.x1, rect.y1
         if self.has_selection():
             s1, s2 = sorted(self.selection)
-            e1, e2 = self.model.expand_range(s1, s2)
+            e1, e2 = model.expand_range(s1, s2)
         else:
             s1 = s2 = e1 = e2 = index
-
+        view = self
         def del_selection():
-            if self.has_selection():
-                self.remove(e1, e2)
+            if view.has_selection():
+                view.remove(e1, e2)
+        return types.SimpleNamespace(
+            model=model, index=index, layout=layout,
+            style=style, parstyle=parstyle,
+            row=row, col=col, x=x, y=y,
+            s1=s1, s2=s2, e1=e1, e2=e2,
+            del_selection=del_selection,
+            path=get_path(model.get_xtexel(), index),
+        )
 
-        if action == 'dump_info':
-            dump_range(model.texel, e1, e2)
-            row, col, i0 = model.index2position(index)
-            print("index=", index)
-            print("row=", row)
-            print("col=", col)
-            print("i0=", i0)
-
-        elif action == 'dump_boxes':
-            layout.dump_boxes(0, 0, 0)
-        elif action == 'move_word_end':
-            i = index
-            n = len(model)
-            try:
-                while not model.get_text(i, i+1).isalnum():
-                    i = i+1
-                while model.get_text(i, i+1).isalnum():
-                    i = i+1
-            except IndexError:
-                i = n
-            self.set_index(i, shift)
-        elif action == 'move_right':
-            self.set_index(index+1, shift)
-        elif action == 'move_word_begin':
-            i = index
-            try:
-                while not model.get_text(i-1, i).isalnum():
-                    i = i-1
-                while model.get_text(i-1, i).isalnum():
-                    i = i-1
-            except IndexError:
-                i = 0
-            self.set_index(i, shift)
-        elif action == 'move_left':
-            self.set_index(index-1, shift)
-        elif action == 'move_paragraph_end':
-            i = model.linestart(index)
-            n = len(model)
-            while model.lineend(i) < n and model.linelength(i) == 1:
-                i = model.lineend(i) + 1
-            while model.lineend(i) < n and model.linelength(i) > 1:
-                i = model.lineend(i) + 1
-            self.set_index(i, shift)
-        elif action == 'move_down':
-            self.move_cursor_to(row+1, col, shift)
-        elif action == 'move_paragraph_begin':
-            i = model.linestart(index)
-            while i > 0 and model.linelength(model.linestart(i - 1)) == 1:
-                i = model.linestart(i - 1)
-            while i > 0 and model.linelength(model.linestart(i - 1)) > 1:
-                i = model.linestart(i - 1)
-            self.set_index(i, shift)
-        elif action == 'move_up':
-            self.move_cursor_to(row-1, col, shift)
-        elif action == 'move_line_start':
-            self.set_index(model.linestart(index), shift)
-        elif action == 'move_line_end':
-            self.set_index(model.lineend(index), shift)
-        elif action == 'move_page_down':
-            _, height = self.get_client_size()
-            i = self.compute_index(x, y + height / self.zoom)
-            self.set_index(i, shift)
-        elif action == 'move_page_up':
-            _, height = self.get_client_size()
-            i = self.compute_index(x, y - height / self.zoom)
-            self.set_index(i, shift)
-        elif action == 'move_document_start':
-            self.set_index(0, shift)
-        elif action == 'move_document_end':
-            self.set_index(len(model), shift)
-        elif action == 'select_all':
-            self.selection = (0, len(model))
-        elif action == 'insert_newline':
-            self.insert_newline(index, style, parstyle)
-        elif action == 'backspace':
-            if self.has_selection():
-                j1, j2 = self.model.expand_range(s1-1, s2)
-                if j2 != e2:
-                    self.remove(e1, e2)
-                else:
-                    self.remove(j1, j2)
-            else:
-                i = self.index
-                if i>0:
-                    j1, j2 = self.model.expand_range(i-1, i)
-                    self.remove(j1, j2)
-        elif action == 'copy':
-            self.editor.copy()
-        elif action == 'paste':
-            self.editor.paste()
-        elif action == 'cut':
-            self.editor.cut()
-        elif action == 'delete':
-            if self.has_selection():
-                del_selection()
-            else:
-                i = self.index
-                if i < len(self.model):
-                    j1, j2 = self.model.expand_range(i, i+1)
-                    self.remove(j1, j2)
-        elif action == 'indent':
-            self.indent()
-        elif action == 'dedent':
-            self.dedent()
-        elif action == 'undo':
-            self.undo()
-        elif action == 'redo':
-            self.redo()
-        elif action == 'del_line_end':
-            el, off = get_localroot(model.texel, index)
-            try:
-                i = find_weight(el, row + 1, 2) - 1 + off
-            except Exception:
-                i = length(el) - 1 + off
-            if i == index:
-                i += 1
-            i = min(i, right_limit(model.texel, 0, index))
-            j1, j2 = self.model.expand_range(index, i)
-            self.to_clipboard(model[j1:j2])
-            self.remove(j1, j2)
-        elif action == 'del_word_left':
-            # find the beginning of the word
-            i = index
-            try:
-                while not model.get_text(i-1, i).isalnum():
-                    i = i-1
-                while model.get_text(i-1, i).isalnum():
-                    i = i-1
-            except IndexError:
-                i = 0
-            i = max(i, left_limit(model.texel, 0, index))                
-            j1, j2 = self.model.expand_range(i, index)
-            self.remove(j1, j2)
-        else:
-            assert len(action) == 1 # single character
-            del_selection()
-            self.insert_text(self.index, action, **style)
+    def handle_action(self, action, shift=False):
+        ctx = self._build_ctx()
+        if not self.editor.handle_action(action, shift, ctx):
+            for handler in self.handlers:
+                if handler(self, action, shift, ctx):
+                    break
         self.refresh()
 
     def copy(self):
@@ -851,6 +802,137 @@ class TextView(ViewBase, Model):
             self.selection = selection[0], index
 
 
+def default_handler(view, action, shift, ctx):
+    """Fallback handler: implements all standard editing actions."""
+    model = ctx.model
+    index = ctx.index
+    row, col = ctx.row, ctx.col
+    x, y = ctx.x, ctx.y
+    style, parstyle = ctx.style, ctx.parstyle
+    e1, e2 = ctx.e1, ctx.e2
+
+    if action == 'dump_info':
+        dump_range(model.texel, e1, e2)
+        r, c, i0 = model.index2position(index)
+        print("index=", index, "row=", r, "col=", c, "i0=", i0)
+    elif action == 'dump_boxes':
+        ctx.layout.dump_boxes(0, 0, 0)
+    elif action == 'move_word_end':
+        i, n = index, len(model)
+        try:
+            while not model.get_text(i, i+1).isalnum(): i += 1
+            while model.get_text(i, i+1).isalnum():     i += 1
+        except IndexError:
+            i = n
+        view.set_index(i, shift)
+    elif action == 'move_right':
+        view.set_index(index + 1, shift)
+    elif action == 'move_word_begin':
+        i = index
+        try:
+            while not model.get_text(i-1, i).isalnum(): i -= 1
+            while model.get_text(i-1, i).isalnum():     i -= 1
+        except IndexError:
+            i = 0
+        view.set_index(i, shift)
+    elif action == 'move_left':
+        view.set_index(index - 1, shift)
+    elif action == 'move_paragraph_end':
+        i, n = model.linestart(index), len(model)
+        while model.lineend(i) < n and model.linelength(i) == 1:
+            i = model.lineend(i) + 1
+        while model.lineend(i) < n and model.linelength(i) > 1:
+            i = model.lineend(i) + 1
+        view.set_index(i, shift)
+    elif action == 'move_down':
+        view.move_cursor_to(row + 1, col, shift)
+    elif action == 'move_paragraph_begin':
+        i = model.linestart(index)
+        while i > 0 and model.linelength(model.linestart(i - 1)) == 1:
+            i = model.linestart(i - 1)
+        while i > 0 and model.linelength(model.linestart(i - 1)) > 1:
+            i = model.linestart(i - 1)
+        view.set_index(i, shift)
+    elif action == 'move_up':
+        view.move_cursor_to(row - 1, col, shift)
+    elif action == 'move_line_start':
+        view.set_index(model.linestart(index), shift)
+    elif action == 'move_line_end':
+        view.set_index(model.lineend(index), shift)
+    elif action == 'move_page_down':
+        _, height = view.get_client_size()
+        view.set_index(view.compute_index(x, y + height / view.zoom), shift)
+    elif action == 'move_page_up':
+        _, height = view.get_client_size()
+        view.set_index(view.compute_index(x, y - height / view.zoom), shift)
+    elif action == 'move_document_start':
+        view.set_index(0, shift)
+    elif action == 'move_document_end':
+        view.set_index(len(model), shift)
+    elif action == 'select_all':
+        view.selection = (0, len(model))
+    elif action == 'insert_newline':
+        view.insert_newline(index, style, parstyle)
+    elif action == 'backspace':
+        if view.has_selection():
+            j1, j2 = model.expand_range(ctx.s1 - 1, ctx.s2)
+            view.remove(e1, e2) if j2 != e2 else view.remove(j1, j2)
+        elif index > 0:
+            j1, j2 = model.expand_range(index - 1, index)
+            view.remove(j1, j2)
+    elif action == 'copy':
+        view.editor.copy()
+    elif action == 'paste':
+        view.editor.paste()
+    elif action == 'cut':
+        view.editor.cut()
+    elif action == 'delete':
+        if view.has_selection():
+            ctx.del_selection()
+        elif index < len(model):
+            j1, j2 = model.expand_range(index, index + 1)
+            view.remove(j1, j2)
+    elif action == 'indent':
+        view.indent()
+    elif action == 'dedent':
+        view.dedent()
+    elif action == 'undo':
+        view.undo()
+    elif action == 'redo':
+        view.redo()
+    elif action == 'del_line_end':
+        el, off = get_localroot(model.texel, index)
+        try:
+            i = find_weight(el, row + 1, 2) - 1 + off
+        except Exception:
+            i = length(el) - 1 + off
+        if i == index:
+            i += 1
+        i = min(i, right_limit(model.texel, 0, index))
+        j1, j2 = model.expand_range(index, i)
+        view.to_clipboard(model[j1:j2])
+        view.remove(j1, j2)
+    elif action == 'del_word_left':
+        i = index
+        try:
+            while not model.get_text(i-1, i).isalnum(): i -= 1
+            while model.get_text(i-1, i).isalnum():     i -= 1
+        except IndexError:
+            i = 0
+        i = max(i, left_limit(model.texel, 0, index))
+        j1, j2 = model.expand_range(i, index)
+        view.remove(j1, j2)
+    else:
+        assert len(action) == 1  # single character
+        ctx.del_selection()
+        view.insert_text(view.index, action, **style)
+    return True
+
+
+from .editing_modes import text_handler
+TextView.handlers = [text_handler, default_handler]
+
+
 def accumulate(r1, r2):
     """Combine two consecutive update ranges into one.
 
@@ -981,3 +1063,24 @@ def test_05():
     view.add_undo(view.remove(10, 11))
     view.add_undo(view.remove(9, 10))
     assert len(view._undoinfo) == 1
+
+
+def test_06():
+    "shift / unshift with undo"
+    view = TestTextView()
+    view.set_model(TextModel('ab\ncd\nef\n'))
+    n0 = len(view.model)
+
+    view.shift(0, 5)   # covers first two lines
+    assert view.model.get_text() == '    ab\n    cd\nef\n'
+    assert len(view.model) == n0 + 8
+
+    view.unshift(0, 9) # same two lines
+    assert view.model.get_text() == 'ab\ncd\nef\n'
+    assert len(view.model) == n0
+
+    view.undo()        # redo unshift → back to shifted
+    assert view.model.get_text() == '    ab\n    cd\nef\n'
+
+    view.undo()        # redo shift → back to original
+    assert view.model.get_text() == 'ab\ncd\nef\n'
