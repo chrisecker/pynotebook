@@ -118,7 +118,7 @@ class WxMixin(wx.ScrolledWindow):
     # --- keyboard ---
 
     def on_char(self, event):
-        if self.editor is not None and self.editor.on_key(event.GetKeyCode(), event):
+        if self.editor.on_key(event.GetKeyCode(), event):
             return
         keycode = event.GetKeyCode()
         ctrl = event.ControlDown()
@@ -169,7 +169,7 @@ class WxMixin(wx.ScrolledWindow):
     # --- mouse ---
 
     def on_motion(self, event):
-        if self.editor is not None and self.editor.on_motion(event):
+        if self.editor.on_motion(event):
             return
         if not event.LeftIsDown():
             return event.Skip()
@@ -179,7 +179,7 @@ class WxMixin(wx.ScrolledWindow):
             self.set_index(i, extend=True)
 
     def on_leftdown(self, event):
-        if self.editor is not None and self.editor.on_leftdown(event):
+        if self.editor.on_leftdown(event):
             return
         x, y = self.window_to_content(event.Position)
         i = self.compute_index(x, y)
@@ -188,7 +188,7 @@ class WxMixin(wx.ScrolledWindow):
         self.SetFocus()
 
     def on_leftup(self, event):
-        if self.editor is not None and self.editor.on_leftup(event):
+        if self.editor.on_leftup(event):
             self.SetCursor(wx.Cursor(wx.CURSOR_IBEAM))
 
     def on_leftdclick(self, event):
@@ -315,6 +315,14 @@ class WxMixin(wx.ScrolledWindow):
 
 class WXTextView(WxMixin, TextView):
 
+    @property
+    def scale(self):
+        try:
+            dpi = self.GetDPI().y
+        except AttributeError:
+            dpi = wx.ScreenDC().GetPPI()[1]
+        return self.builder.get_device().get_scale(dpi)
+
     def __init__(self, parent, id=-1,
                  pos=wx.DefaultPosition, size=wx.DefaultSize, style=0):
         WxMixin.__init__(self, parent, id, pos, size, style)
@@ -327,18 +335,9 @@ class WXTextView(WxMixin, TextView):
             maxw=self._maxw)
 
 
-testtext = u"""Ein m\xe4nnlicher Briefmark erlebte
-Was Sch\xf6nes, bevor er klebte.
-Er war von einer Prinzessin beleckt.
-Da war die Liebe in ihm geweckt.
-Er wollte sie wiederk\xfcssen,
-Da hat er verreisen m\xfcssen.
-So liebte er sie vergebens.
-Das ist die Tragik des Lebens.
-
-(Joachim Ringelnatz)"""
 
 def init_testing(redirect=True):
+    from .textview import testtext
     app = wx.App(redirect=redirect)
     model = TextModel(testtext)
     model.set_properties(15, 24, fontsize=14)
@@ -356,17 +355,16 @@ def init_testing(redirect=True):
     frame.Show()
     return locals()
 
-
-
 def test_02():
+    "setting cursor & selection"
     ns = init_testing(redirect=True)
     view = ns['view']
     view.cursor = 5
     view.selection = 3, 6
     return ns
 
-
 def test_03():
+    "inserting text"
     ns = init_testing(redirect=False)
     model = ns['model']
     view = ns['view']
@@ -383,7 +381,6 @@ def test_03():
     assert len(view.layout) == n + 1
     return locals()
 
-
 def test_04():
     "insert/remove"
     ns = init_testing(False)
@@ -393,8 +390,8 @@ def test_04():
     n = len(model)
     for i in range(len(text)):
         model.insert_text(i, 'X')
-        assert len(model) == n + 1
-        model.remove(i, i + 1)
+        assert len(model) == n+1
+        model.remove(i, i+1)
         assert len(model) == n
 
 def test_05():
@@ -404,9 +401,9 @@ def test_05():
     view = ns['view']
     text = model.get_text()
     n = len(model)
-    for i in range(len(text) - 1):
-        old = model.remove(i, i + 1)
-        assert len(model) == n - 1
+    for i in range(len(text)-1):
+        old = model.remove(i, i+1)
+        assert len(model) == n-1
         model.insert(i, old)
         assert len(model) == n
 
@@ -420,6 +417,7 @@ def test_09():
     return ns
 
 def test_10():
+    "linebreak after insert"
     ns = init_testing(redirect=False)
     model = ns['model']
     view = ns['view']
@@ -435,8 +433,8 @@ def test_10():
     assert u < x
     assert v > y
 
-
 def test_11():
+    "relayout after changes"
     ns = init_testing(redirect=False)
     model = ns['model']
     view = ns['view']
@@ -444,15 +442,15 @@ def test_11():
     model.insert(0, TextModel("123\n"))
     assert view.layout.get_index(100, 0) == 3
 
-
 def test_13():
-    "Exception during delete 10.01.2015"
+    "exception during delete 10.01.2015"
     ns = init_testing(redirect=False)
     model = ns['model']
     view = ns['view']
     view.index = 271
     view.selection = (42, 42 + 227)
     view.cut()
+
 
 def test_14():
     "join_undo"
@@ -462,8 +460,9 @@ def test_14():
         view.add_undo(view.insert(i, TextModel(text)))
     assert len(view._undoinfo) == 1
 
-    view._undoinfo = []  # reset undo
+    view._undoinfo = [] # reset undo
 
+    # emulate backspace
     view.add_undo(view.remove(10, 11))
     view.add_undo(view.remove(9, 10))
     assert len(view._undoinfo) == 1

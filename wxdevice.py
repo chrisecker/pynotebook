@@ -1,4 +1,4 @@
-# -*- coding: latin-1 -*-
+﻿# -*- coding: utf-8 -*-
 
 # WxDevice provides a lightweight abstraction layer that keeps device
 # and application specific code isolated from the rest of the
@@ -45,6 +45,9 @@ class WxDevice:
     """
     zoom = 1.0
     buffering = True
+
+    def get_scale(self, dpi):
+        return self.zoom
     def __init__(self):
         self._cache = LRUCache(1000)
         # Temporary GC for measuring

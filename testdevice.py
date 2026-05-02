@@ -1,10 +1,15 @@
-# -*- coding: latin-1 -*-
+﻿# -*- coding: utf-8 -*-
 
 class TestDevice:
     # Device is a interface layer to capsule platform dependent
     # graphics methods.
 
     buffering = False
+    zoom = 1.0
+
+    def get_scale(self, dpi):
+        return self.zoom
+
     def clear_caches(self):
         pass
     
