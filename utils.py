@@ -1,5 +1,81 @@
+# -*- coding: utf-8 -*-
 from .texeltree import NewLine, length, iter_childs, fuse, grouped, \
     provides_childs, Group
+
+
+class NotFound(Exception):
+    pass
+
+
+def find_weight(texel, w, windex):
+    """Return the position where the accumulated weight *windex* first reaches *w*.
+
+    Inverse of get_weight: find_weight(t, get_weight(t, wi, i), wi) == i
+    for positions i that are exactly at a weight boundary (e.g. a NewLine).
+    Only works for additive weights (length, lineno), not depth.
+    Containers are treated as atomic.
+    """
+    assert type(w) is int
+    if w == 0:
+        return 0
+    if texel.is_group:
+        sum_w = 0
+        for i1, i2, child in iter_childs(texel):
+            delta = child.weights[windex]
+            if sum_w+delta >= w:
+                return find_weight(child, w-sum_w, windex)+i1
+            sum_w += delta
+    if w == texel.weights[windex]:
+        return length(texel)
+    raise NotFound(w)
+
+
+def get_weight(texel, windex, i):
+    """Return the accumulated weight *windex* of texel up to (not including) position *i*.
+
+    For windex=2 (lineno) this counts the number of NewLines before position i.
+    """
+    if i < 0:
+        raise IndexError
+    if i >= length(texel):
+        return texel.weights[windex]
+    w = 0
+    if i == 0:
+        return w
+    if texel.is_group:
+        for i1, i2, child in iter_childs(texel):
+            if i2 <= i:
+                w += child.weights[windex]
+            elif i1 <= i <= i2:
+                w += get_weight(child, windex, i-i1)
+            else:
+                break
+    return w
+
+
+
+def get_localroot(texel, i, i0=0):
+    """Return (root, offset) for the local coordinate system at position i.
+
+    Inside a container's content area: returns (content_child, cell_start).
+    Outside any container: returns (texel, i0).
+    """
+    if texel.is_container:
+        j2 = i0 + 1
+        for child in texel.childs[1::2]:
+            j1 = j2
+            j2 += length(child) + 1
+            if j1 <= i < j2:
+                return child, j1
+        return texel, i0
+    if texel.is_group:
+        for j1, j2, child in iter_childs(texel):
+            if j1 <= i - i0 < j2:
+                result = get_localroot(child, i, i0 + j1)
+                if result[0] is not child:
+                    return result
+                break
+    return texel, i0
 
 
 def iter_leafes(texel, i, descend_containers=False):
@@ -35,6 +111,91 @@ def iter_newlines(texel, i, descend_containers=False):
             yield j1, j2, elem
 
 
+def next_newline(texel, i):
+    """Return position of first NewLine at or after i, or length(texel) if none.
+
+    Sentinel: result < length(texel) iff a NewLine was found.
+    Inside a container, searches the current content cell; the closing separator
+    counts as a NewLine. Outside containers are treated as atomic.
+    """
+    n = length(texel)
+    if isinstance(texel, NewLine):
+        return 0 if i <= 0 else n
+    if texel.is_container:
+        if i <= 0:
+            return n
+        j2 = 1
+        for content in texel.childs[1::2]:
+            j1 = j2
+            j2 += length(content) + 1
+            if j2 <= i:
+                continue
+            if i < j2 - 1:
+                return next_newline(content, i - j1) + j1
+            return j2 - 1
+        return n
+    if texel.is_group:
+        if texel.weights[2] == 0:
+            return n
+        for j1, j2, child in iter_childs(texel):
+            if j2 <= i:
+                continue
+            if j1 < i and child.is_container:
+                result = next_newline(child, i - j1)
+                if result < length(child):
+                    return result + j1
+                continue
+            if child.weights[2] == 0:
+                continue
+            result = next_newline(child, i - j1)
+            if result < length(child):
+                return result + j1
+    return n
+
+
+def prev_newline(texel, i):
+    """Return position of last NewLine strictly before i, or -1 if none exists.
+
+    Inside a container, searches the current content cell. Outside containers
+    are treated as atomic. Returning -1 allows ``prev_newline(...) + 1`` to
+    always give the line start without a None check.
+    """
+    if i <= 0:
+        return -1
+    if isinstance(texel, NewLine):
+        return 0
+    if texel.is_container:
+        j2 = 1
+        for content in texel.childs[1::2]:
+            j1 = j2
+            j2 += length(content) + 1
+            if j2 <= i:
+                continue
+            if i > j1 and content.weights[2]:
+                result = prev_newline(content, i - j1)
+                if result != -1:
+                    return result + j1
+            return j1 - 1
+        return -1
+    if texel.is_group:
+        if texel.weights[2] == 0:
+            return -1
+        for j1, j2, child in reversed(list(iter_childs(texel))):
+            if j1 >= i:
+                continue
+            if child.is_container and j2 > i:
+                result = prev_newline(child, i - j1)
+                if result != -1:
+                    return result + j1
+                continue
+            if child.weights[2] == 0:
+                continue
+            result = prev_newline(child, i - j1)
+            if result != -1:
+                return result + j1
+    return -1
+
+
 def iter_paragraphs(texel, i, descend_containers=False):
     """Break the texel material into paragraphs. Yields for each
     paragraph begin, end and list of texels.
@@ -64,6 +225,7 @@ def get_newlines(texel, i1, i2, _offset=0):
             yield _offset, texel
 
 
+    
 def transform_range(texel, i1, i2, fun):
     """Apply fun to all texels in [i1, i2), descending into containers.
 
@@ -304,3 +466,115 @@ def test_09():
         assert False
     except IndexError:
         pass
+
+
+def test_09b():
+    "get_localroot"
+    from .texeltree import T, NL, G, Fraction
+    f = Fraction(T('x'), T('y'))
+    # Fraction: sep0 at 0, T('x') at 1, sep1 at 2, T('y') at 3, sep2 at 4
+    root, off = get_localroot(f, 1)   # inside cell 1
+    assert root is f.childs[1] and off == 1
+    root, off = get_localroot(f, 3)   # inside cell 2
+    assert root is f.childs[3] and off == 3
+
+    g = G([T('a'), f, NL])
+    # T('a') at 0, f at [1,6), NL at 6
+    root, off = get_localroot(g, 0)   # outside container
+    assert root is g and off == 0
+    root, off = get_localroot(g, 1)   # opening separator of f → outside
+    assert root is g and off == 0
+    root, off = get_localroot(g, 6)   # outside container
+    assert root is g and off == 0
+    root, off = get_localroot(g, 2)   # inside cell 1 of f → g-pos 2 = f-pos 1
+    assert root is f.childs[1] and off == 2
+    root, off = get_localroot(g, 4)   # inside cell 2 of f → g-pos 4 = f-pos 3
+    assert root is f.childs[3] and off == 4
+
+    # get_start / get_end semantics via get_localroot
+    def get_start(texel, i):
+        _, offset = get_localroot(texel, i)
+        return offset
+    def get_end(texel, i):
+        r, offset = get_localroot(texel, i)
+        return offset + length(r)
+    assert get_start(g, 0) == 0
+    assert get_end(g, 0) == length(g)
+    assert get_start(g, 2) == 2   # cell 1 start
+    assert get_end(g, 2) == 3     # cell 1 closing sep
+    assert get_start(g, 4) == 4   # cell 2 start
+    assert get_end(g, 4) == 5     # cell 2 closing sep
+
+
+def test_10():
+    "next_newline, prev_newline: plain group and smart container behavior"
+    from .texeltree import T, NL, G, Fraction
+
+    # plain group: 'ab\ncd\n', NLs at positions 2 and 5
+    g = G([T('ab'), NL, T('cd'), NL])
+    n = length(g)  # 6
+    assert next_newline(g, 0) == 2
+    assert next_newline(g, 2) == 2   # at NL returns that position
+    assert next_newline(g, 3) == 5
+    assert next_newline(g, 5) == 5
+    assert next_newline(g, 6) == n   # sentinel: no NL found
+
+    assert prev_newline(g, 0) == -1
+    assert prev_newline(g, 2) == -1  # strictly before
+    assert prev_newline(g, 3) == 2
+    assert prev_newline(g, 5) == 2
+    assert prev_newline(g, 6) == 5
+    assert prev_newline(g, 0) + 1 == 0   # sentinel usage: line start
+    assert prev_newline(g, 3) + 1 == 3
+
+    # smart container: G([T('a'), Fraction(T('x'),T('y')), NL])
+    # T('a') at [0,1); Fraction at [1,6): seps at 1,3,5; cells at [2,3) and [4,5)
+    # outer NL at [6,7)
+    f = Fraction(T('x'), T('y'))
+    g2 = G([T('a'), f, NL])
+    n2 = length(g2)  # 7
+
+    # outside container: only outer NL visible
+    assert next_newline(g2, 0) == 6
+    assert prev_newline(g2, 6) == -1  # container is opaque from outside
+    assert prev_newline(g2, 7) == 6
+
+    # inside container: searches cell content, returns cell separator
+    assert next_newline(g2, 2) == 3   # inside cell 1 → sep1 at g2-pos 3
+    assert next_newline(g2, 4) == 5   # inside cell 2 → sep2 at g2-pos 5
+    assert prev_newline(g2, 3) == 1   # inside cell 1 → sep0 at g2-pos 1
+    assert prev_newline(g2, 5) == 3   # inside cell 2 → sep1 at g2-pos 3
+
+
+
+def test_12():
+    "find_weight"
+    from .texeltree import T, NL, G, Fraction
+    g = G([T("ab"), NL, T("cd"), NL])
+    assert find_weight(g, 1, 2) == 3
+    assert find_weight(g, 2, 2) == 6
+    f = Fraction(T("x"), T("y"))
+    g2 = G([f, NL])
+    assert find_weight(g2, 1, 2) == length(f) + 1
+    try:
+        find_weight(g, 99, 2)
+        assert False
+    except NotFound:
+        pass
+
+
+def test_13():
+    "get_weight"
+    from .texeltree import T, NL, G, Fraction
+    g = G([T("ab"), NL, T("cd"), NL])
+    assert get_weight(g, 2, 0) == 0
+    assert get_weight(g, 2, 1) == 0
+    assert get_weight(g, 2, 3) == 1
+    assert get_weight(g, 2, 5) == 1
+    assert get_weight(g, 2, 6) == 2
+    assert get_weight(g, 2, length(g)) == g.weights[2]
+    f = Fraction(T("x"), T("y"))
+    g2 = G([T("a"), f, NL])
+    for i in range(1, 1 + length(f) + 1):
+        assert get_weight(g2, 2, i) == 0
+    assert get_weight(g2, 2, length(g2)) == 1
