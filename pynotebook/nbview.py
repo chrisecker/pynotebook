@@ -1138,7 +1138,6 @@ class NBView(WxMixin, _NBView):
         keycode = event.GetKeyCode()
         ctrl = event.ControlDown()
         shift = event.ShiftDown()
-        print("on_char", keycode, ctrl, shift)
         if keycode == wx.WXK_RETURN and shift and not ctrl:
             try:
                 self.execute()
