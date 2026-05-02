@@ -315,6 +315,14 @@ class WxMixin(wx.ScrolledWindow):
 
 class WXTextView(WxMixin, TextView):
 
+    @property
+    def scale(self):
+        try:
+            dpi = self.GetDPI().y
+        except AttributeError:
+            dpi = wx.ScreenDC().GetPPI()[1]
+        return self.builder.get_device().get_scale(dpi)
+
     def __init__(self, parent, id=-1,
                  pos=wx.DefaultPosition, size=wx.DefaultSize, style=0):
         WxMixin.__init__(self, parent, id, pos, size, style)
@@ -373,6 +381,32 @@ def test_03():
     assert len(view.layout) == n + 1
     return locals()
 
+def test_04():
+    "insert/remove"
+    ns = init_testing(False)
+    model = ns['model']
+    view = ns['view']
+    text = model.get_text()
+    n = len(model)
+    for i in range(len(text)):
+        model.insert_text(i, 'X')
+        assert len(model) == n+1
+        model.remove(i, i+1)
+        assert len(model) == n
+
+def test_05():
+    "remove"
+    ns = init_testing(redirect=False)
+    model = ns['model']
+    view = ns['view']
+    text = model.get_text()
+    n = len(model)
+    for i in range(len(text)-1):
+        old = model.remove(i, i+1)
+        assert len(model) == n-1
+        model.insert(i, old)
+        assert len(model) == n
+
 def test_09():
     "linebreak"
     ns = init_testing(redirect=False)
@@ -417,6 +451,21 @@ def test_13():
     view.selection = (42, 42 + 227)
     view.cut()
 
+
+def test_14():
+    "join_undo"
+    ns = init_testing(redirect=False)
+    view = ns['view']
+    for i, text in enumerate('abcd'):
+        view.add_undo(view.insert(i, TextModel(text)))
+    assert len(view._undoinfo) == 1
+
+    view._undoinfo = [] # reset undo
+
+    # emulate backspace
+    view.add_undo(view.remove(10, 11))
+    view.add_undo(view.remove(9, 10))
+    assert len(view._undoinfo) == 1
 
 def demo_00():
     "simple demo"
