@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 
 
 from .textmodel.textmodel import TextModel, dump_range
@@ -109,12 +109,13 @@ def _bitmap_saver(bitmap):
         im = wx.Image(w, h, bitmap.data)
     output = io.BytesIO()
     im.SaveFile(output, wx.BITMAP_TYPE_PNG)
-    return base64.b64encode(output.getvalue())
+    return output.getvalue()
 
 
 
 def _bitmap_loader(data):
-    pngdata = base64.b64decode(data)
+    # older files contain base64 encoded png data
+    pngdata = data if data[:4] == b'\x89PNG' else base64.b64decode(data)
     stream = io.BytesIO(pngdata)
     image = wx.Image(stream, type=wx.BITMAP_TYPE_ANY)
     # Force copies: GetData/GetAlpha may return memoryviews backed by

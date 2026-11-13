@@ -353,12 +353,10 @@ class Scale:
 
 
 def _register_graphics_classes():
-    from .cerealizerformat import register
-    registered = set()
+    from .jsonformat import register
     for value in list(globals().values()):
-        if isinstance(value, type) and value not in registered:
+        if isinstance(value, type) and value.__module__ == __name__:
             register(value)
-            registered.add(value)
 
 _register_graphics_classes()
 

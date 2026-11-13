@@ -1,511 +1,259 @@
 ﻿# -*- coding: utf-8 -*-
 
-# Simple json-format
+# Default file format: the object tree as JSON.
 #
-# Possible improvements:
-# - produce nicer JSON
-# - omit default arguments
+# Like cerealizer, objects are stored with their state (__getstate__ or
+# __dict__) and restored with __new__ and __setstate__. It is just as
+# safe: only registered classes can be created, and JSON cannot carry
+# code. Styles are stored once in a table and referenced by index.
+# Groups are written as flat arrays and rebalanced on load, weights are
+# recomputed: both are internals of the texeltree.
+#
+#   # pynotebook2
+#   {"styles": [{}, {"bold": true}],
+#    "model": {"cls": "TextModel",
+#              "texel": [{"cls": "Text", "text": "Hi", "style": {"style": 1}},
+#                        ...],
+#              "ENDMARK": {"cls": "NewLine", ...}}}
+#
+# JSON arrays are tuples, except in "childs" and in texel positions,
+# where they are lists and groups; other lists are {"list": [...]}.
+# Values of attributes "style" and "parstyle" that are dicts go to the
+# style table.
 
-
-
-from pynotebook.textmodel.textmodel import TextModel
-from pynotebook.nbtexels import TextCell, ScriptingCell, mk_textmodel, \
-    Graphics, BitmapRGBA, BitmapRGB
-from pynotebook.graphics import LineColor, LineWidth, LineDashes, LineJoin, \
-    LineCap, FillColor, Line, Polygon, Path, Circle, Ellipse, Arc, \
-    Rectangle, Font, GraphicsText, Translate, Rotate, Scale
-from pynotebook.textmodel.texeltree import Group, Text, NewLine, Tabulator, G,\
-    T, dump, EMPTYSTYLE, NULL_TEXEL, grouped, hash_style
-from functools import reduce
-from base64 import b64encode
+from .textmodel.textmodel import TextModel
+from .textmodel import texeltree
+from .textmodel.texeltree import Group, Text, grouped, as_style
+from . import nbtexels
+from base64 import b64encode, b64decode
 import json
 
 
-magic = '# pynotebook1\n'
+magic = '# pynotebook2\n'
+style_keys = ('style', 'parstyle')
+derived_keys = ('weights',)
 
-def _flatten(g):
-    if not isinstance(g, Group):
-        return [g]      
+_missing = object()
+_name2class = {}
+_class2name = {}
+
+
+def register(cls, classname=None):
+    """Allows objects of *cls* to be saved and loaded. The first class
+    registered under a name wins, as in cerealizer."""
+    name = classname or cls.__name__
+    if name in _name2class or cls in _class2name:
+        return
+    _name2class[name] = cls
+    _class2name[cls] = name
+
+
+def get_registered():
+    return list(_name2class.items())
+
+
+def _get_state(obj):
+    getstate = getattr(type(obj), '__getstate__', None)
+    if getstate is not None and getstate is not object.__getstate__:
+        return obj.__getstate__()
+    return obj.__dict__
+
+
+def _flatten(group):
     r = []
-    for child in g.childs:
-        r.extend(_flatten(child))
+    for child in group.childs:
+        r.extend(_flatten(child) if child.is_group else [child])
     return r
 
 
-def _join_strings(l, b):
-    if len(l) == 0:
-        return [b]
-    a = l[-1]
-    if 1: # jupyter style
-        if a.endswith('\n'):
-            return l+[b]
-    return l[:-1]+[a+b]
-    
+class _Encoder:
+    def __init__(self):
+        self.styles = []
+        self.style_index = {}
 
-string_classes = Text, NewLine, Tabulator
-def _join_text(l, b):
-    # merge texel l[-1] and b if they are both similarly formatted strings. 
-    if len(l) == 0:
-        return [b]
-    a = l[-1]
-    if 1:
-        # jupyter starts a new element after each \n
-        if a.text.endswith('\n'):
-            return l+[b]
-    if isinstance(b, NewLine): # and b.parstyle:
-        return l+[b]
-    if a.__class__ in string_classes and b.__class__ in string_classes:
-        if a.style is b.style:
-            return l[:-1]+[Text(a.text+b.text)]
-    return l+[b]
+    def encode_style(self, style):
+        key = json.dumps(style, sort_keys=True)
+        if key not in self.style_index:
+            self.style_index[key] = len(self.styles)
+            self.styles.append(dict(style))
+        return self.style_index[key]
 
-def _break_string(s, w=80):
-    r = []
-    while len(s) > w:
-        r.append(s[:w])
-        s = s[w:]
-    return r+[s]
-                 
+    def encode(self, value, key=None):
+        t = type(value)
+        if value is None or t in (bool, int, float, str):
+            return value
+        if t is tuple:
+            return [self.encode(x) for x in value]
+        if t is list:
+            l = [self.encode(x) for x in value]
+            return l if key == 'childs' else dict(list=l)
+        if t is bytes:
+            return dict(bytes=b64encode(value).decode('ascii'))
+        if isinstance(value, dict):
+            if key in style_keys:
+                return dict(style=self.encode_style(value))
+            if not all(type(k) is str for k in value):
+                raise TypeError('Cannot save dict with non-string keys: %r' % value)
+            return dict(dict={k: self.encode(v) for k, v in value.items()})
+        if isinstance(value, Group):
+            return [self.encode(x) for x in _flatten(value)]
+        return self.encode_object(value)
 
-class _TexelProcessor:
-    def __init__(self, texel):
-        self._current_style = {}
-        self._defined_styles = dict()
-        self._current_parstyle = {}
-        self._defined_parstyles = dict()        
-        self.result = self.process(texel)
-        
-    def process(self, texel):
-        name = "handle_"+texel.__class__.__name__
-        f = getattr(self, name)
-        return f(texel)
-
-    ### texeltree
-    def handle_Group(self, texel):
-        return [self.process(x) for x in _flatten(texel)]
-
-    def set_style(self, style):
-        r = []
-        if style is not self._current_style:
-            h = hash_style(style)
-            if h not in self._defined_styles:
-                # Achtung: definiert und setzt den Style
-                name = 'S%i' % len(self._defined_styles)
-                self._defined_styles[h] = name
-                cmd = dict(cmd='newstyle', name=name)
-                cmd.update(style)
-                r.append(cmd)
-            else:
-                name = self._defined_styles[h]
-                cmd = dict(cmd='style', name=name)
-                r.append(cmd)
-                r.append(dict(style=name))
-            self._current_style = style
+    def encode_object(self, obj):
+        name = _class2name.get(type(obj))
+        if name is None:
+            raise TypeError('Cannot save object of unregistered class %s' %
+                            type(obj).__name__)
+        state = _get_state(obj)
+        r = dict(cls=name)
+        if type(state) is dict:
+            for k, v in state.items():
+                # derived values and class defaults are omitted
+                if k not in derived_keys and getattr(type(obj), k, _missing) is not v:
+                    r[k] = self.encode(v, k)
+        else:
+            r['state'] = self.encode(state)
         return r
 
-    def set_parstyle(self, parstyle):
-        r = []
-        if parstyle is not self._current_parstyle:
-            h = hash_style(parstyle)
-            if h not in self._defined_parstyles:
-                # Achtung: definiert und setzt den Style
-                name = 'PS%i' % len(self._defined_parstyles)
-                self._defined_parstyles[h] = name
-                cmd = dict(cmd='newparstyle', name=name)
-                cmd.update(parstyle)
-                r.append(cmd)
-            else:
-                name = self._defined_parstyles[h]
-                cmd = dict(cmd='parstyle', name=name)
-                r.append(cmd)
-                r.append(dict(parstyle=name))
-            self._current_parstyle = parstyle
+
+class _Decoder:
+    def __init__(self, styles):
+        self.styles = [as_style(s) for s in styles]
+
+    def decode(self, obj, key=None, is_texel=False):
+        t = type(obj)
+        if t is list:
+            if key == 'childs':
+                return [self.decode(x, is_texel=True) for x in obj]
+            if is_texel:
+                return grouped([self.decode(x) for x in obj])
+            return tuple(self.decode(x) for x in obj)
+        if t is not dict:
+            return obj
+        if 'cls' in obj:
+            return self.decode_object(obj)
+        if 'list' in obj:
+            return [self.decode(x) for x in obj['list']]
+        if 'bytes' in obj:
+            return b64decode(obj['bytes'])
+        if 'style' in obj:
+            return self.styles[obj['style']]
+        if 'dict' in obj:
+            return {k: self.decode(v) for k, v in obj['dict'].items()}
+        raise ValueError('Unknown object: %r' % obj)
+
+    def decode_object(self, obj):
+        name = obj['cls']
+        cls = _name2class.get(name)
+        if cls is None:
+            raise ValueError('Unknown class: %r' % name)
+        if 'state' in obj:
+            state = self.decode(obj['state'])
+        else:
+            state = {}
+            for k, v in obj.items():
+                if k == 'cls':
+                    continue
+                if k.startswith('__'):
+                    raise ValueError('Invalid attribute: %r' % k)
+                state[k] = self.decode(v, k, is_texel=(k == 'texel'))
+        r = cls.__new__(cls)
+        if hasattr(cls, '__setstate__'):
+            r.__setstate__(state)
+        else:
+            r.__dict__.update(state)
+        if 'childs' in r.__dict__ and hasattr(r, 'compute_weights'):
+            r.compute_weights()
+        elif isinstance(r, Text):
+            r.weights = Text(r.text).weights
         return r
-    
-    def handle_Text(self, texel):
-        #return [dict(cls=texel.__class__.__name__, style=texel.style, text=texel.text)]
-        return self.set_style(texel.style)+_break_string(texel.text)
-    
-    def handle_NewLine(self, texel):
-        return self.set_style(texel.style)+\
-               self.set_parstyle(texel.parstyle)+['\n']
-
-    def handle_Tabulator(self, texel):
-        return dict(cls=texel.__class__.__name__, style=texel.style, parstyle=texel.parstyle)
-    
-    def handle_RichText(self, texel):
-        # Richtext can contain any texel, including formatted text
-        childs = reduce(_join_text, _flatten(texel), [])
-        r = []
-        for x in childs:
-            r.extend(self.process(x))
-        return r
-
-    def handle_UnformattedText(self, texel):
-        strings = [t.text for t in _flatten(texel)]
-        return reduce(_join_strings, strings, [])
-
-    ### nbtexels
-    def handle_TextCell(self, texel):
-        return [dict(
-            cls=texel.__class__.__name__,
-            text=self.handle_RichText(texel.text))]
-    
-    def handle_ScriptingCell(self, texel):
-        return [dict(
-            cls=texel.__class__.__name__,
-            client=texel.client_name,
-            input=self.handle_UnformattedText(texel.input), 
-            output=self.handle_RichText(texel.output))]
-    
-    def handle_BimapRGB(self, texel):
-        return [dict(
-            cls=texel.__class__.__name__,
-            size=texel.size,
-            data=_break_string(texel.data.decode('latin-1'), 20))]
-
-    def handle_BitmapRGBA(self, texel):
-        return [dict(
-            cls=texel.__class__.__name__,
-            size=texel.size,
-            data=_break_string(texel.data.decode('latin-1'), 20),
-            alpha=_break_string(texel.alpha.decode('latin-1'), 20))]
-
-    def handle_Graphics(self, texel):
-        l = []
-        for item in texel.items:
-            l += self.process(item)
-        return [dict(
-            cls=texel.__class__.__name__,            
-            items=l,
-            size=texel.size,
-            frame=texel.frame)]
-    ### graphics
-    
-    #def _dump_dict(self, texel):
-    #    r = dict(cls=texel.__class__.__name__)
-    #    r.update(texel.__dict__)
-    #    return r
-    
-    def handle_LineColor(self, texel):
-        return [dict(cls=texel.__class__.__name__, color=texel.color)]
-
-    def handle_LineWidth(self, texel):
-        return [dict(cls=texel.__class__.__name__, width=texel.width)]
-
-    def handle_LineDashes(self, texel):
-        return [dict(cls=texel.__class__.__name__, dashes=texel.dashes)]
-
-    def handle_LineJoin(self, texel):
-        return [dict(cls=texel.__class__.__name__, join_style=texel.join_style)]
-
-    def handle_LineCap(self, texel):
-        return [dict(cls=texel.__class__.__name__, cap_style=texel.cap_style)]
-
-    def handle_FillColor(self, texel):
-        return [dict(cls=texel.__class__.__name__, color=texel.color)]
-    
-    def handle_Line(self, texel):
-        return [dict(cls=texel.__class__.__name__, points=texel.points)]
-
-    def handle_Polygon(self, texel):
-        return [dict(cls=texel.__class__.__name__, points=texel.points)]
-
-    def handle_Path(self, texel):
-        return [dict(cls=texel.__class__.__name__, data=texel.data)]
-
-    def handle_Circle(self, texel):
-        return [dict(cls=texel.__class__.__name__, x=texel.x, y=texel.y, r=texel.r)]
-
-    def handle_Ellipse(self, texel):
-        return [dict(cls=texel.__class__.__name__, x=texel.x, y=texel.y,
-                     r1=texel.r1, r2=texel.r2)]
-
-    def handle_Arc(self, texel):
-        return [dict(cls=texel.__class__.__name__, x=texel.x, y=texel.y,
-                     r=texel.r, start=texel.start, end=texel.end)]
-
-    def handle_Rectangle(self, texel):
-        return [dict(cls=texel.__class__.__name__, x1=texel.x1, y1=texel.y1,
-                     x2=texel.x1, y2=texel.y2)]
-
-    def handle_Font(self, texel):
-        return [dict(cls=texel.__class__.__name__, size=texel.size, family=texel.family,
-                     style=texel.style, weight=texel.weight, underline=texel.underline,
-                     encoding=texel.encoding)]
-        
-    def handle_GraphicsText(self, texel):
-        return [dict(cls=texel.__class__.__name__, text=texel.text, point=texel.point,
-                     align=texel.align)]
-
-    def handle_Translate(self, texel):
-        return [dict(cls=texel.__class__.__name__, offset=texel.offset)]
-
-    def handle_Rotate(self, texel):
-        return [dict(cls=texel.__class__.__name__, angle=texel.angle)]
-
-    def handle_Scale(self, texel):
-        return [dict(cls=texel.__class__.__name__, fx=texel.fx, fy=texel.fy)]
-    
-    ### textmodel
-    def handle_TextModel(self, textmodel):
-        return dict(
-            cls='TextModel',
-            data=self.process(textmodel.texeltree)
-        )
-
-    
-"""
-  def undump_obj(self, dumper, s): return self.Class_new(self.Class)
-  
-  def undump_data(self, obj, dumper, s):
-    if self.Class_setstate: self.Class_setstate(obj, dumper.undump_ref(s))
-    else:                   obj.__dict__ =           dumper.undump_ref(s)
-"""
-
-    
-def as_simple(texel):
-    return _TexelProcessor(texel).result
-
-
-    
-registry = dict()
-
-
-def _b64(s):
-    if type(s) is list:
-        s = ''.join(s)
-    return b64encode(s.encode('latin-1'))
-
-
-def _extract_dataobj(obj):
-    """extract a data object from json obj. Data objects are all
-    objects which are no texels. Currently this are only graphics
-    objects (Line, Circle, ...)"""
-    
-    if not type(obj) is dict:
-        raise SyntaxError('Expected an object: %s' % obj)
-    d = obj
-    cls = d['cls']
-    if cls == 'Line':
-        points = _extract_pylist(d['points'])
-        return Line(*points)
-    elif cls == 'LineColor':
-        return LineColor(d['color'])
-    elif cls == 'LineWidth':
-        return LineWidth(d['width'])
-    elif cls == 'LineDashes':
-        return LineDashes(d['dashes'])
-    elif cls == 'LineJoin':
-        return LineJoin(d['join_style'])
-    elif cls == 'LineCap':
-        return LineCap(d['cap_style'])
-    elif cls == 'FillColor':
-        return FillColor(d['color'])
-    elif cls == 'line':
-        return Line(*d['points'])
-    elif cls == 'Polygon':
-        return Line(*d['points'])
-    elif cls == 'Path':
-        return Path(*d['data'])
-    elif cls == 'Circle':
-        return Circle((d['x'], d['y']), d['r'])
-    elif cls == 'Ellipse':
-        return Ellipse((d['x'], d['y']), d['r1'], d['r2'])
-    elif cls == 'Arc':
-        return Arc((d['x'], d['y']), d['r'], d['start'], d['end'])
-    elif cls == 'Rectangle':
-        return Rectangle((d['x1'], d['y1']), (d['x2'], d['y2']))
-    elif cls == 'Font':
-        return Font(d['size'], d['family'], d['style'], d['weight'],
-                    d['underline'], d['face'], d['encoding'])
-    elif cls == 'GraphicsText':
-        return GraphicsText(_extract_string(d['text']), d['point'], d['align'])
-    elif cls == 'Translate':
-        return Translate(d['offset'])
-    elif cls == 'Rotate':
-        return Rotate(d['angle'])
-    elif cls == 'Scale':
-        return Scale(d['fx'], d['fy'])
-    elif cls == "BitmapRGB":
-        return BitmapRGB(size=d['size'], data=_b64(d['data']))    
-    elif cls == "BitmapRGBA":
-        return BitmapRGBA(size=d['size'], data=_b64(d['data']),
-                          alpha=_b64(d['alpha']))    
-    raise Exception("Don't know how to load object:", obj)
-
-
-def _extract_graphicsobjects(obj):
-    """Extract a list of graphicsobjects"""
-    if not type(obj) is list:
-        raise SyntaxError('Expected a list of graphics objects: %s' % obj)
-    r = []
-    for x in obj:
-        r.append(_extract_dataobj(x))
-    return r
-    
-            
-def _extract_texel(obj, state):
-    """Extract a single texel from a json object"""
-    if type(obj) is list:
-        l = []
-        for elem in obj:
-            if type(elem) is dict and 'cmd' in elem:
-                _eval_cmd(elem, state)
-            else:
-                l.append(_extract_texel(elem, state))
-        return grouped(l)
-
-    if type(obj) is str:
-        return Text(obj, style=state.current_style)
-    
-    # if it is not a list and not a string, obj must be a dict
-    if not type(obj) is dict:
-        raise SyntaxError(
-            'Expected a single text element or a list of text elements, got: %s' \
-            % repr(obj))
-    
-    d = obj
-    cls = d['cls']
-    if cls == "Text":
-        return Text(d['text'], style=state.current_style)
-    
-    elif cls == "NewLine":
-        return NewLine(style=state.current_style,
-                       parstyle=state.current_parstyle)
-    
-    elif cls == "TextCell":
-        text = _extract_texel(d['text'], state)
-        return TextCell(text)
-    
-    elif cls == "ScriptingCell":
-        input = _extract_texel(d['input'], state)
-        output = _extract_texel(d['output'], state)            
-        return ScriptingCell(input, output)
-    
-    elif cls == "BitmapRGB":
-        return BitmapRGB(size=d['size'], data=_b64(d['data']))
-    
-    elif cls == "BitmapRGBA":
-        return BitmapRGBA(size=d['size'], data=_b64(d['data']),
-                          alpha=_b64(d['alpha']))
-    
-    elif cls == "Graphics":
-        items = _extract_graphicsobjects(d['items'])
-        return Graphics(items, size=d['size'], frame=d['frame'])
-    
-    else:
-        raise Exception("Expected texel, not", obj)
-
-    
-def _extract_pydict(obj): # currently not needed
-    """Extract a python dictionary from a json-dict."""
-    r = dict()
-    for key, value in obj.items():
-        r[key] = _extract_basic(value)         
-    return r
-
-
-def _extract_pylist(obj):
-    """Extract a list of basic python objects from a json-dict."""
-    r = []
-    for item in obj:
-        r.append(_extract_basic(item))
-    return r
-
-
-basic_types = int, float, str, list, tuple
-def _extract_basic(obj):
-    """Extract a basic python type from a json object."""
-    if not type(obj) in basic_types:
-        raise Exception("Basic type (int float, string, list, tuple) expected", obj)
-    return obj
-
-
-def _eval_cmd(obj, state):
-    """Evaluate a json object as command."""
-    if not type(obj) is dict:
-        raise SyntaxError(obj)
-    cmd = obj['cmd']
-    d = obj
-    if cmd == 'newstyle':
-        style = d.copy()
-        name = style['name']
-        del style['name']
-        state.defined_styles[name] = style
-        state.current_style = style
-
-    elif cmd == 'style':
-        name = d['name']
-        style = state.defined_styles[name]
-        state.current_style = style
-
-    elif cmd == 'newparstyle':
-        parstyle = d.copy()
-        name = parstyle['name']
-        del parstyle['name']
-        state.defined_parstyles[name] = parstyle
-        state.current_parstyle = parstyle
-
-    elif cmd == 'parstyle':
-        name = d['name']
-        parstyle = state.defined_parstyles[name]
-        state.current_parstyle = parstyle
-
-    else:
-        raise Exception('Unknown command %s' % cmd)
-
-    
-def from_simple(obj):
-    class state:
-        current_style = {}
-        defined_styles = {}
-        current_parstyle = {}
-        defined_parstyles = {}
-
-    return _extract_texel(obj, state)
 
 
 def dumps(model):
-    simple = as_simple(model.texel)
-    return magic+json.dumps(simple, indent=2)
+    encoder = _Encoder()
+    data = encoder.encode(model)
+    return magic+json.dumps(dict(styles=encoder.styles, model=data), indent=1)
 
 
 def loads(s):
-    n = len(magic)
     if not s.startswith(magic):
-        raise('Not a pynotebook-file:', repr(s[:n]))
-    model = TextModel()
-    simple = json.loads(s[n:])
-    model.texel = from_simple(simple)
-    return model
+        raise ValueError('Not a pynotebook file: %r' % s[:len(magic)])
+    data = json.loads(s[len(magic):])
+    return _Decoder(data['styles']).decode(data['model'])
+
+
+register(texeltree.Group)
+register(texeltree.Text)
+register(texeltree.Container)
+register(texeltree.NewLine)
+register(texeltree.Tabulator)
+register(TextModel)
+register(nbtexels.TextCell)
+register(nbtexels.ScriptingCell)
+register(nbtexels.BitmapRGB)
+register(nbtexels.BitmapRGBA)
+register(nbtexels.Graphics)
 
 
 def test_00():
-    model = TextModel('')
-    tmp = TextModel(u'for a in range(5):\n    print a')
-    cell = ScriptingCell(tmp.texel, NULL_TEXEL)
-    model.insert(len(model), mk_textmodel(cell))
-    model.insert(len(model), mk_textmodel(cell))
-    #print(as_simple(model.texel))
-
-    import json
-    print(json.dumps(as_simple(model.texel), indent=2))
+    "round trip of cells and styles"
+    from .textmodel.texeltree import NewLine, G
+    bold = as_style(dict(bold=True))
+    text = G([Text('Hello', bold), NewLine().set_parstyle(bold), Text('world')])
+    model = TextModel()
+    model.insert(0, nbtexels.mk_textmodel(nbtexels.TextCell(text)))
+    cell = nbtexels.ScriptingCell(Text('print(1)'), Text('1'))
+    model.insert(len(model), nbtexels.mk_textmodel(cell))
+    s = dumps(model)
+    assert s.startswith(magic)
+    assert s.count('"bold"') == 1 # styles are stored once
+    clone = loads(s)
+    assert clone.get_text() == model.get_text()
+    for i in range(len(model)):
+        assert clone.get_style(i) is model.get_style(i)
+        assert clone.get_parstyle(i) is model.get_parstyle(i)
+    assert clone.texel.weights == model.texel.weights
 
 
 def test_01():
-    import wx
-    app = wx.App()
-    from pynotebook.nbview import NBView
-    from pynotebook.graphics import register_classes
-    register_classes()
-    f = wx.Frame(None)
-    v = NBView(f, filename='pnb/demo/graphics.pnb')
-    model = v.model
-    assert len(model)>1000
+    "only registered classes are loaded"
+    class Evil: pass
+    try:
+        dumps(Evil())
+        assert False
+    except TypeError:
+        pass
+    for bad in ['{"cls": "os.system"}', '{"cls": "Text", "__class__": 1}']:
+        try:
+            loads(magic+'{"styles": [], "model": %s}' % bad)
+            assert False
+        except ValueError:
+            pass
 
-    s = dumps(model)
-    #print(s)
-    clone = loads(s)
-    assert len(model) == len(clone)
-    
+
+def test_02():
+    "tuples, lists, bytes and dicts keep their type"
+    from .graphics import LineDashes, Line
+    enc = _Encoder()
+    value = (1, [2, 3], b'\x00\xff', dict(a=(1.5, None)), LineDashes([1, 2]),
+             Line((0, 0), (1, 1)))
+    clone = _Decoder(enc.styles).decode(enc.encode(value))
+    assert clone[:4] == value[:4]
+    assert type(clone[1]) is list and type(clone[3]['a']) is tuple
+    assert clone[4].__dict__ == value[4].__dict__
+    assert clone[5].__dict__ == value[5].__dict__
+
+
+def test_03():
+    "all demo notebooks survive a round trip"
+    import glob, wx
+    app = wx.App()
+    from . import cerealizerformat, graphics
+    graphics.register_classes()
+    names = glob.glob('pnb/demo/*.pnb')
+    assert names
+    for name in names:
+        model = cerealizerformat.loads(open(name, 'rb').read())
+        clone = loads(dumps(model))
+        assert clone.get_text() == model.get_text(), name
+        assert dumps(clone) == dumps(model), name

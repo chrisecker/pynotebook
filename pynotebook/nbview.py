@@ -721,8 +721,9 @@ class _NBView(TextView):
   
     def _load(self, filename):
         s = open(filename, 'rb').read()
-        from . import cerealizerformat, jsonformat
-        if s.startswith(cerealizerformat.magic):
+        from . import jsonformat
+        if s.startswith(b'pynotebook0'): # older format, needs cerealizer
+            from . import cerealizerformat
             model = cerealizerformat.loads(s)
         elif s.startswith(jsonformat.magic.encode()):
             model = jsonformat.loads(s.decode('utf-8'))

@@ -166,13 +166,10 @@ def Sketch(l, *args, **kwds): # XXX highly experimental
 
 
 def _register_wxgraphics_classes():
-    from .cerealizerformat import register
-    registered = set()
+    from .jsonformat import register
     for value in list(globals().values()):
-        if isinstance(value, type) and value not in registered:
-            classname = getattr(value, 'regname', None)
-            register(value, classname=classname)
-            registered.add(value)
+        if isinstance(value, type) and value.__module__ == __name__:
+            register(value, classname=getattr(value, 'regname', None))
 
 _register_wxgraphics_classes()
 

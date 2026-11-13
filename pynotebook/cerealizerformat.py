@@ -2,10 +2,11 @@
 
 # cerealizerformat.py
 #
-# A simple file format based on cerealizer. This is basically a secure
-# form of pickling. Is meant to be used during development.
+# The former file format, based on cerealizer (a secure form of
+# pickling). Kept to load older files; jsonformat is the default. The
+# classes are those registered in jsonformat.
 
-from . import nbtexels
+from . import nbtexels, jsonformat
 from .textmodel import textmodel
 from .textmodel import texeltree, styles
 from .nbtexels import mk_textmodel
@@ -17,23 +18,18 @@ from io import BytesIO
 magic = b'pynotebook0'
 cmagic =b'cereal1'
 
-def register(Class, handler=None, classname=None):
-    # By default we want to register a class by its short name,
-    # however in cerealizer the default is the full name (module +
-    # name). I prefer the short name, because classes may be moved to
-    # other modules during development.
-    # Idempotent: silently skip already-registered classes so that
-    # importing graphics modules multiple times never raises.
-    if classname is None:
-        classname = Class.__name__
-    try:
-        cerealizer.register(Class, handler, classname)
-    except ValueError:
-        pass
-
+def _register_classes():
+    # Classes are registered by their short name (cerealizer's default
+    # is module + name), because classes may move to other modules.
+    for classname, Class in jsonformat.get_registered():
+        try:
+            cerealizer.register(Class, None, classname)
+        except ValueError: # already registered
+            pass
 
 
 def dumps(obj):
+    _register_classes()
     s = BytesIO()
     cerealizer.Dumper().dump(obj, s)
     c = s.getvalue()
@@ -59,25 +55,13 @@ def _replace_styles(texel, table):
 
 def loads(s):
     assert s.startswith(magic)
+    _register_classes()
     s = cmagic+s[len(magic):]
     
     model =  cerealizer.Dumper().undump(BytesIO(s))
     _replace_styles(model.texel, {})
     return model
 
-
-register(texeltree.Group)
-register(texeltree.Text)
-register(texeltree.Container)
-register(texeltree.NewLine)
-register(texeltree.Tabulator)
-
-register(textmodel.TextModel)
-
-register(nbtexels.TextCell)
-register(nbtexels.ScriptingCell)
-register(nbtexels.BitmapRGB)
-register(nbtexels.BitmapRGBA)
 
 
 def test_00():
