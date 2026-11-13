@@ -17,22 +17,40 @@ ideas.
 
 Unlike heavier applications like Jupyter or Spyder, pnb is
 exceptionally lightweight and easy to install. It has only two
-dependencies: wxPython and pynotebook, the latter of which requires no
-further external packages itself.
+dependencies: wxPython and pynotebook, which itself only needs the
+small pure-Python package cerealizer to read files of older versions.
 
 
 Features
 --------
 
-Most notable features are:
+- Code cells: run with Shift+Return, the output appears right below
+- Syntax highlighting, completion (Tab) and help on the word at the
+  cursor (Ctrl-H)
+- Text cells with formatted text for notes and documentation
+- Plots via matplotlib and built-in vector graphics, right in the
+  document
+- Safe, readable file format: notebooks are saved as JSON, and opening
+  a file never runs code
+- BSD license
 
-- syntax highlighting
-- command completion (tab-key)
-- object introspection (ctrl-h)
-- built-in vector graphics
-- plotting via matplotlib
-- BSD-license
 
+Quick start
+-----------
+
+Start `pnb`, type some Python code and press Shift+Return:
+
+| Key | Action |
+|---|---|
+| Shift+Return | Execute the cell |
+| Tab | Complete |
+| Ctrl-H | Help on the word at the cursor |
+| Ctrl-T | Insert a text cell |
+| Ctrl-B | Split the cell at the cursor |
+| Ctrl-I / Ctrl-U | Indent / dedent |
+
+Examples: `demo/*.pnb` in the sources; the Linux packages install them
+to `/usr/share/doc/pnb/examples/`.
 
 
 Installation
@@ -63,10 +81,10 @@ Desktop integration after a pip installation (pnb must be on the PATH):
     cp pnb.png ~/.local/share/icons/hicolor/96x96/apps/
 
 
-Testing
--------
+Run without installing
+----------------------
 
-To start pnb without installing type:
+In this folder:
 
     python runtests.py pnb
 
@@ -75,6 +93,3 @@ Links
 -----
 - [pynotebook module](https://pypi.org/project/pynotebook/)
 - [source code](https://codeberg.org/chrisecker/pynotebook/src/branch/master/pnb)
-
-
-

@@ -76,9 +76,9 @@ cnt = contour(Z, cmap=cm.RdBu, vmin=abs(Z).min(), vmax=abs(Z).max(), extent=[0, 
 output(fig)
 
 [In]:
-from mpl_toolkits.mplot3d import axes3d, Axes3D
+from mpl_toolkits.mplot3d import axes3d
 fig = plt.figure()
-ax = Axes3D(fig)
+ax = fig.add_subplot(projection='3d')
 X, Y, Z = axes3d.get_test_data(0.05)
 cset = ax.contour(X, Y, Z, 16, extend3d=True)
 ax.clabel(cset, fontsize=9, inline=1)
