@@ -20,7 +20,7 @@ well.
 
 Applications using the Pynotebook library include:
 
-- [pnb application](https://pypi.python.org/pypi/pnb) – a Python notebook application  
+- [pnb application](https://pypi.org/project/pnb/) – a Python notebook application  
 
 ## Run demo (no installation)
 
@@ -39,13 +39,17 @@ Some files also have builtin demos:
 
 
 ## Installation
+
+From PyPI:
+
+    pip install pynotebook
+
+From the source folder:
+
     pip install .
 
-or if you do not have the pip executable installed:
-
-    python -m pip install .
-
 If you also want to install pnb:
+
     pip install pnb
 
 ## Links

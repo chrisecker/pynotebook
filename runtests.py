@@ -86,9 +86,9 @@ class Tester:
         if ok:
             print("ok")
             if not self.redirect:
-                return
+                return ok
             if self.silent:
-                return
+                return ok
             if self.stdoutbuffer.getvalue():
                 print("stdout:")
                 print(self.stdoutbuffer.getvalue())
@@ -134,6 +134,7 @@ def test_library(modulname, silent=False, profile=False, names=()):
             n_ok += 1
     print("Number of tests:\t%i" % n)
     print("Tests failed:   \t%i" % (n-n_ok))
+    return n-n_ok
 
 
 
@@ -143,7 +144,7 @@ def test_file(filename, silent=False, profile=False, names=()):
     else:
         modulname = filename
     modulname = modulname.replace('/', '.')
-    test_library(modulname, names=names, silent=silent, profile=profile)
+    return test_library(modulname, names=names, silent=silent, profile=profile)
 
     
 if __name__ == '__main__':
@@ -169,5 +170,5 @@ if __name__ == '__main__':
     fun_names = sys.argv[2:]
     print("testing:", filename)
 
-    test_library(filename, names=fun_names, silent=silent, profile=profile)
+    sys.exit(1 if test_library(filename, names=fun_names, silent=silent, profile=profile) else 0)
 

@@ -38,16 +38,29 @@ Most notable features are:
 Installation
 ------------
 
-Installing the binary:
+Linux (Debian, Ubuntu, Fedora, ...): download the `.deb` or `.rpm`
+from the [Releases page](https://github.com/chrisecker/pynotebook/releases)
+and install it, e.g.:
+
+    sudo apt install ./pnb_*_all.deb
+    sudo dnf install ./pnb-*.noarch.rpm
+
+The packages use the wxPython of the distribution and add pnb to the
+application menu.
+
+With pip (needs wxPython, which pip has to build from source on Linux):
+
+    pip install pnb
+
+From the source folder:
 
     pip install .
 
+Desktop integration after a pip installation (pnb must be on the PATH):
 
-Desktop integration (on ubuntu):
-
-    mkdir -p ~/.local/share/applications
+    mkdir -p ~/.local/share/applications ~/.local/share/icons/hicolor/96x96/apps
     cp pnb.desktop ~/.local/share/applications/
-    cp pnb.png  ~/.local/share/icons/
+    cp pnb.png ~/.local/share/icons/hicolor/96x96/apps/
 
 
 Testing
@@ -60,8 +73,8 @@ To start pnb without installing type:
 
 Links
 -----
-- [pynotebook module](https://pypi.python.org/pypi/pynotebook)
-- [source code](https://codeberg.org/chrisecker/textmodel/tree/master/pynotebook)
+- [pynotebook module](https://pypi.org/project/pynotebook/)
+- [source code](https://codeberg.org/chrisecker/pynotebook/src/branch/master/pnb)
 
 
 

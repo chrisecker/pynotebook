@@ -21,6 +21,7 @@ exclude = [
 [tool.poetry.dependencies]
 python = "^3.10"
 wxPython = ">=4.2"
+cerealizer = ">=0.8"
 
 [build-system]
 requires = ["poetry-core"]

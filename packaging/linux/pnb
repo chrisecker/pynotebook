@@ -1,0 +1,8 @@
+#!/bin/sh
+# Starts pnb from /usr/share/pnb (.deb/.rpm): not in the site-packages
+# of one Python version, so it survives Python updates.
+exec /usr/bin/python3 -c '
+import sys
+sys.path.insert(0, "/usr/share/pnb")
+from pnb import main
+sys.exit(main(sys.argv[1:]))' "$@"

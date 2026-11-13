@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # manual start (Actions tab, "Run workflow"): only tests and the job
+  # "linux" run, its packages go to the run as a download
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  linux:
+    # .deb and .rpm for all architectures, see packaging/linux/nfpm.yaml
+    needs: test
+    runs-on: ubuntu-24.04
+    env:
+      NFPM_VERSION: 2.41.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - if: github.event_name == 'push'
+        name: Check that both versions match the tag
+        run: |
+          for f in pyproject.toml pnb/pyproject.toml; do
+            v=$(python -c "import sys, tomllib; print(tomllib.load(open(sys.argv[1], 'rb'))['tool']['poetry']['version'])" $f)
+            if [ "v$v" != "$GITHUB_REF_NAME" ]; then
+              echo "$f has version $v, tag is $GITHUB_REF_NAME"
+              exit 1
+            fi
+          done
+      - name: Install nfpm
+        run: |
+          url=https://github.com/goreleaser/nfpm/releases/download
+          curl -sSfL -o nfpm.tar.gz \
+            "$url/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
+          tar -xzf nfpm.tar.gz nfpm
+      - name: Build .deb and .rpm
+        # pynotebook, pnb and cerealizer as pip installs them; the version
+        # from pnb/pyproject.toml
+        run: |
+          export VERSION=$(python -c "import tomllib; print(tomllib.load(open('pnb/pyproject.toml', 'rb'))['tool']['poetry']['version'])")
+          pip install --no-deps --no-compile --target build/linux/stage . ./pnb cerealizer
+          rm -rf build/linux/stage/bin
+          mkdir -p dist
+          ./nfpm package -f packaging/linux/nfpm.yaml -p deb -t dist/
+          ./nfpm package -f packaging/linux/nfpm.yaml -p rpm -t dist/
+      - name: Smoke test - install the packages in containers
+        # fails if a distribution lacks a dependency
+        run: |
+          for image in debian:12 debian:13 ubuntu:24.04 ubuntu:26.04; do
+            docker run --rm -v "$PWD:/src" \
+              -e DEBIAN_FRONTEND=noninteractive $image sh -c \
+              "apt-get update -q &&
+               apt-get install -y -q /src/dist/*.deb xvfb xauth &&
+               python3 /src/packaging/linux/smoke_test.py"
+          done
+          docker run --rm -v "$PWD:/src" fedora:42 sh -c \
+            "dnf install -y -q /src/dist/*.rpm xorg-x11-server-Xvfb xauth which &&
+             python3 /src/packaging/linux/smoke_test.py"
+      - if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.deb
+            dist/*.rpm
+      - if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
+
+  pypi:
+    # only after the Linux packages were built and tested
+    needs: linux
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install build twine packaging
+      - run: |
+          python -m build --outdir dist/pynotebook .
+          python -m build --outdir dist/pnb pnb
+      - run: twine check dist/*/*
+      - name: Check that pnb accepts this pynotebook
+        run: python .github/check_pnb_requirement.py "${GITHUB_REF_NAME#v}" dist/pnb/*.whl
+      # pynotebook first, so pnb never points to a missing version
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/pynotebook/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/pnb/
