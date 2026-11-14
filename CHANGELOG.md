@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Return inserted several lines (and code cells lost their indentation) in notebooks with more than one cell.
+- Paragraph styles in text cells were not found in notebooks with more than one cell.
+
 ## [0.4.0] - 2026-11-14
 
 ### Added

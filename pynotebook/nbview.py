@@ -1639,6 +1639,23 @@ def test_22():
     assert model.get_text() == text
 
 
+def test_23():
+    "Enter in a notebook with several cells inserts one line"
+    view = _NBView()
+    model = view.model
+    model.insert(0, mk_textmodel(TextCell(Text(u'hello'))))
+    cell = ScriptingCell(Text(u'    x = 1'), Text(u''))
+    model.insert(len(model), mk_textmodel(cell))
+    view.set_index(3) # text cell
+    n = len(model)
+    view.handle_action('insert_newline')
+    assert len(model) == n+1
+    i = model.get_text().index('x = 1')
+    view.set_index(i) # code cell: keeps the indentation
+    view.handle_action('insert_newline')
+    assert model.get_text()[i:i+5] == '\n    '
+
+
 def demo_00():
     from .wxtextview import testing
     ns = test_11()
