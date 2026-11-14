@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-14
+
 ### Fixed
 - Return inserted several lines (and code cells lost their indentation) in notebooks with more than one cell.
 - Paragraph styles in text cells were not found in notebooks with more than one cell.
@@ -85,7 +87,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## 0.0.1 - 2016-03-16
 - Initial release.
 
-[Unreleased]: https://codeberg.org/chrisecker/pynotebook/compare/v0.4.0...HEAD
+[Unreleased]: https://codeberg.org/chrisecker/pynotebook/compare/v0.4.1...HEAD
+[0.4.1]: https://codeberg.org/chrisecker/pynotebook/compare/v0.4.0...v0.4.1
 [0.4.0]: https://codeberg.org/chrisecker/pynotebook/compare/v0.3.0...v0.4.0
 [0.3.0]: https://codeberg.org/chrisecker/pynotebook/compare/v0.2.6...v0.3.0
 [0.2.6]: https://codeberg.org/chrisecker/pynotebook/compare/v0.2.5...v0.2.6
