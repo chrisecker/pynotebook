@@ -1,15 +1,21 @@
 #!/usr/bin/env python
 
+import sys
+import os
+
+try:
+    import wx
+except ImportError: # wxPython is an optional dependency, see README
+    sys.exit('pnb needs wxPython 4.2 or newer. Install it with\n'
+             '    pip install "pnb[wx]"\n'
+             'or use the package of your Linux distribution '
+             '(python3-wxgtk4.0, python3-wxpython4).')
 
 import pynotebook
 from pynotebook import graphics
 from pynotebook.nbtexels import NotFound
 from pynotebook.nbview import TextModel, NBView
 from pynotebook.inspector import TextCellInspector
-
-import sys
-import os
-import wx
 
 
 wildcard = "Pynotebook files (*.pnb)|*.pnb|" \

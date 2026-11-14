@@ -66,9 +66,16 @@ and install it, e.g.:
 The packages use the wxPython of the distribution and add pnb to the
 application menu.
 
-With pip (needs wxPython, which pip has to build from source on Linux):
+With pip and the wxPython of your Linux distribution (4.2 or newer):
 
-    pip install pnb
+    sudo apt install python3-wxgtk4.0      # or: sudo dnf install python3-wxpython4
+    python3 -m venv --system-site-packages ~/pnb-env
+    ~/pnb-env/bin/pip install pnb
+
+With pip including wxPython (Windows, macOS; on Linux, pip has to build
+wxPython from source):
+
+    pip install "pnb[wx]"
 
 From the source folder:
 

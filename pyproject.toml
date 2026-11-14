@@ -20,8 +20,13 @@ exclude = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-wxPython = ">=4.2"
+wxPython = {version = ">=4.2", optional = true}
 cerealizer = ">=0.8"
+
+# wxPython is optional: on Linux pip has to build it, the one of the
+# distribution or of the application is usually preferred
+[tool.poetry.extras]
+wx = ["wxPython"]
 
 [build-system]
 requires = ["poetry-core"]

@@ -8,6 +8,12 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 pynotebook = "^0.3.0"
+wxPython = {version = ">=4.2", optional = true}
+
+# wxPython is optional: on Linux pip has to build it, the one of the
+# distribution is usually preferred
+[tool.poetry.extras]
+wx = ["wxPython"]
 
 [tool.poetry.scripts]
 pnb = "pnb:main"

@@ -29,8 +29,8 @@ well.
   shows R (needs rpy2)
 - Safe, readable file format: notebooks are saved as JSON, and opening
   a file never runs code
-- Few dependencies: wxPython, and cerealizer to read files of older
-  versions; BSD license
+- Few dependencies: wxPython (not installed automatically), and
+  cerealizer to read files of older versions; BSD license
 
 ## Embedding
 
@@ -56,9 +56,15 @@ Applications using the Pynotebook library include:
 
 ## Installation
 
-From PyPI:
+Pynotebook needs wxPython 4.2 or newer, which is not installed
+automatically: usually your application or your Linux distribution
+already provides it. From PyPI:
 
     pip install pynotebook
+
+To install wxPython as well (on Linux, pip has to build it from source):
+
+    pip install "pynotebook[wx]"
 
 From the source folder:
 
