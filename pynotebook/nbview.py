@@ -971,7 +971,10 @@ class _NBView(TextView):
 
     def execute(self):
         self.clear_temp()
-        i0, cell = self.find_cell()
+        try:
+            i0, cell = self.find_cell()
+        except NotFound: # e.g. cursor behind the last cell
+            return
         if not isinstance(cell, ScriptingCell):
             self.index = i0+length(cell)
             return
@@ -1621,6 +1624,19 @@ def test_21():
     # pos 33 is sep2 (after '    print(a)'); leading spaces = 4
     view.insert_newline(33, {}, {})
     assert len(model) == n+5  # '\n    ' inserted
+
+
+def test_22():
+    "execute behind the last cell does nothing"
+    view = _NBView()
+    model = view.model
+    model.insert(0, mk_textmodel(TextCell(Text(u'text'))))
+    view.set_index(1)
+    view.execute() # a text cell: moves the cursor behind the cell
+    assert view.index == len(model)
+    text = model.get_text()
+    view.execute()
+    assert model.get_text() == text
 
 
 def demo_00():
