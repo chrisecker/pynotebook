@@ -50,7 +50,7 @@ Start `pnb`, type some Python code and press Shift+Return:
 | Ctrl-I / Ctrl-U | Indent / dedent |
 
 Examples: `demo/*.pnb` in the sources; the Linux packages install them
-to `/usr/share/doc/pnb/examples/`.
+to `/usr/share/pnb/examples/`.
 
 
 Installation
