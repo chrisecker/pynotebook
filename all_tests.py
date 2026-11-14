@@ -13,12 +13,15 @@ files = [
     "pynotebook/jsonformat.py",
     "pynotebook/inspector.py",
     "pynotebook/cerealizerformat.py",
+    "pynotebook/textformat.py",
     # textmodel
     "pynotebook/textmodel/texeltree.py",
     "pynotebook/textmodel/styles.py",
     "pynotebook/textmodel/textmodel.py",
     "pynotebook/textmodel/iterators.py",
     "pynotebook/textmodel/properties.py",
+    "pynotebook/textmodel/utils.py",
+    "pynotebook/textmodel/weights.py",
     # wxtextview
     "pynotebook/wxtextview/textview.py",
     "pynotebook/wxtextview/wxtextview.py",
