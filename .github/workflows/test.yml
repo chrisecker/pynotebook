@@ -18,6 +18,7 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q xvfb libgtk-3-0t64 libsdl2-2.0-0 libnotify4
-      # PyPI has no Linux wheels for wxPython, building from source takes ~1h
-      - run: pip install -f https://extras.wxpython.org/wxPython4/extras/linux/gtk3/ubuntu-24.04 wxPython cerealizer
+      # PyPI has no Linux wheels for wxPython, only newer sources that pip
+      # would try to build; --only-binary takes the wheel from extras
+      - run: pip install --only-binary wxPython -f https://extras.wxpython.org/wxPython4/extras/linux/gtk3/ubuntu-24.04 wxPython cerealizer
       - run: xvfb-run -a python all_tests.py
