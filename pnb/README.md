@@ -49,8 +49,8 @@ Start `pnb`, type some Python code and press Shift+Return:
 | Ctrl-B | Split the cell at the cursor |
 | Ctrl-I / Ctrl-U | Indent / dedent |
 
-Examples: `demo/*.pnb` in the sources; the Linux packages install them
-to `/usr/share/pnb/examples/`.
+Examples: Help → Demos (`pnb/examples/*.pnb` in the sources, installed
+with the package).
 
 
 Installation

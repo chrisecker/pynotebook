@@ -3,7 +3,8 @@
 import sys
 import os
 import platform
-from importlib import metadata
+import functools
+from importlib import metadata, resources
 
 try:
     import wx
@@ -14,16 +15,48 @@ except ImportError: # wxPython is an optional dependency, see README
              'or use the package of your Linux distribution '
              '(python3-wxgtk4.0, python3-wxpython4).')
 
-import pynotebook
 from pynotebook import graphics
 from pynotebook.nbtexels import NotFound
-from pynotebook.nbview import TextModel, NBView
+from pynotebook.nbview import NBView
 from pynotebook.inspector import TextCellInspector
 
 
 wildcard = "Pynotebook files (*.pnb)|*.pnb|" \
            "Python source (*.py)|*.py|" \
            "All files (*.*)|*.*"
+
+def get_demos():
+    # package data, so it works for pip, .deb/.rpm and bundled apps alike
+    examples = resources.files(__package__) / 'examples'
+    demos = [p for p in examples.iterdir() if p.name.endswith('.pnb')]
+    return sorted(demos, key=lambda p: p.name)
+
+
+@functools.cache
+def get_file_history():
+    # shared by all windows, stored in ~/.config/pnb.conf
+    history = wx.FileHistory()
+    history.Load(get_config())
+    return history
+
+def get_config():
+    style = wx.CONFIG_USE_LOCAL_FILE | wx.CONFIG_USE_XDG
+    return wx.FileConfig('pnb', style=style)
+
+def save_history():
+    config = get_config()
+    get_file_history().Save(config)
+    config.Flush()
+
+def add_recent(path):
+    get_file_history().AddFileToHistory(os.path.abspath(path))
+    save_history()
+
+def open_window(path):
+    win = MainWindow(path)
+    win.Show()
+    add_recent(path)
+    return win
 
 def get_version(name):
     try:
@@ -53,13 +86,15 @@ def method2cmd(label, name):
 
 
 class MainWindow(wx.Frame):
-    set_width = ['Set width', 'increase_maxw', 'decrease_maxw', 'set_w1', 'set_w2', 'set_w3']
+    set_width = ['Set width', 'increase_maxw', 'decrease_maxw',
+                 'set_w1', 'set_w2', 'set_w3']
     ctxt_entries = ['inspector', 'open', 'save', 'save_as', 'close']
     file_entries = ['new', 'open', 'save', 'save_as', 'close']
     edit_entries = ['copy', 'paste', 'cut', 'undo', 'redo', 'indent', 'dedent']
     cell_entries = ['inspector', 'insert_textcell', 'insert_pycell', 
                     'remove_output', 'split_cell', set_width]
-    interpreter_entries = ['execute', 'execute_all', 'complete', 'help', 'reset']
+    interpreter_entries = ['execute', 'execute_all', 'complete', 'help',
+                           'reset']
     debug_entries = ['rebuild_view', 'clean_model', 'dump_texels', 
                      'dump_styles', 'dump_boxes', 'profile_insert']
     help_entries = ['about']
@@ -84,6 +119,9 @@ class MainWindow(wx.Frame):
         sb = wx.StatusBar(self)
         self.SetStatusBar(sb)
         self.Bind(wx.EVT_IDLE, self.update)
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.Bind(wx.EVT_MENU_RANGE, self.open_recent,
+                  id=wx.ID_FILE1, id2=wx.ID_FILE9)
 
      
     def make_menubar(self):
@@ -111,7 +149,7 @@ class MainWindow(wx.Frame):
             menu = wx.Menu()
             for entry in entries:
                 if entry is None:
-                    menu.AppendSeperator()
+                    menu.AppendSeparator()
                 elif type(entry) is list:                    
                     submenu = mk_menu(entry[1:])
                     menu.AppendSubMenu(submenu, entry[0])
@@ -129,13 +167,29 @@ class MainWindow(wx.Frame):
                             menu.Enable(item.Id, fun())
                         updaters.append(update)
             return menu
-        menubar.Append(mk_menu(self.file_entries), '&File')
+        file_menu = mk_menu(self.file_entries)
+        self.recent_menu = wx.Menu()
+        file_menu.Insert(2, -1, 'Open &Recent', self.recent_menu)
+        history = get_file_history()
+        history.UseMenu(self.recent_menu)
+        history.AddFilesToMenu(self.recent_menu)
+        menubar.Append(file_menu, '&File')
         menubar.Append(mk_menu(self.edit_entries), '&Edit')
         menubar.Append(mk_menu(self.cell_entries), '&Cell')
         menubar.Append(mk_menu(self.interpreter_entries), '&Interpreter')
         if debug:
             menubar.Append(mk_menu(self.debug_entries), 'Debug')
-        menubar.Append(mk_menu(self.help_entries), '&Help')
+        help_menu = mk_menu(self.help_entries)
+        demos = get_demos()
+        if demos:
+            demo_menu = wx.Menu()
+            for demo in demos:
+                item = demo_menu.Append(-1, demo.name.removesuffix('.pnb'))
+                self.Bind(wx.EVT_MENU,
+                          lambda event, demo=demo: self.open_demo(demo), item)
+            help_menu.Insert(0, -1, '&Demos', demo_menu)
+            help_menu.InsertSeparator(1)
+        menubar.Append(help_menu, '&Help')
 
         self.SetAcceleratorTable(wx.AcceleratorTable(accel))
         self.updaters = updaters 
@@ -205,9 +259,31 @@ class MainWindow(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             paths = dlg.GetPaths()
             for path in paths:
-                win = MainWindow(path)
-                win.Show()
+                open_window(path)
         dlg.Destroy()
+
+    def open_recent(self, event):
+        history = get_file_history()
+        i = event.Id - wx.ID_FILE1
+        path = history.GetHistoryFile(i)
+        if os.path.exists(path):
+            open_window(path)
+            return
+        wx.MessageBox(f'File not found:\n{path}', 'Open Recent',
+                      wx.OK | wx.ICON_ERROR, self)
+        history.RemoveFileFromHistory(i)
+        save_history()
+
+    def open_demo(self, demo):
+        # unnamed, so that Save does not write to the (read only) demo
+        with resources.as_file(demo) as path:
+            win = MainWindow(str(path))
+        win.filename = None
+        win.Show()
+
+    def on_close(self, event):
+        get_file_history().RemoveMenu(self.recent_menu)
+        event.Skip()
 
     def save(self, event):
         "&Save\tCtrl-S"
@@ -229,6 +305,7 @@ class MainWindow(wx.Frame):
             self.shell.save(path)
             self.filename = path
             self.shell.clear_undo()
+            add_recent(path)
 
         dlg.Destroy()
 
@@ -309,7 +386,8 @@ class MainWindow(wx.Frame):
  
         def _dump_styles(texel, i=0):
             if texel.is_single or texel.is_text:
-                print(i, ":", i+length(texel), id(texel.style), texel.__class__.__name__)
+                print(i, ":", i+length(texel), id(texel.style),
+                      texel.__class__.__name__)
             else:
                 for child in texel.childs:
                     _dump_styles(child, i)
@@ -350,7 +428,8 @@ class MainWindow(wx.Frame):
     def profile_insert(self, event):
         "Profile Insert"
         from cProfile import runctx
-        runctx("self.shell.model.insert_text(self.shell.index, 'X')", globals(), locals())
+        runctx("self.shell.model.insert_text(self.shell.index, 'X')",
+               globals(), locals())
         self._set_logfont()
 
     def _set_logfont(self):
@@ -395,8 +474,7 @@ def main(argv=None):
     win = None    
     for name in filenames:
         # Each file is opened in a seperate window.
-        win = MainWindow(name)
-        win.Show()
+        win = open_window(name)
     if win is None:
         win = MainWindow()
         win.Show()

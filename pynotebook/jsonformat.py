@@ -250,7 +250,7 @@ def test_03():
     app = wx.App()
     from . import cerealizerformat, graphics
     graphics.register_classes()
-    names = glob.glob('pnb/demo/*.pnb')
+    names = glob.glob('pnb/pnb/examples/*.pnb')
     assert names
     for name in names:
         model = cerealizerformat.loads(open(name, 'rb').read())

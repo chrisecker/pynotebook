@@ -31,9 +31,6 @@ contents:
     dst: /usr/share/mime/packages/pnb.xml
   - src: ./pnb/pnb.png
     dst: /usr/share/icons/hicolor/96x96/apps/pnb.png
-  # not in /usr/share/doc: minimal systems (e.g. Ubuntu images) omit it
-  - src: ./pnb/demo/*.pnb
-    dst: /usr/share/pnb/examples/
   - src: ./LICENSE
     dst: /usr/share/doc/pnb/LICENSE
 

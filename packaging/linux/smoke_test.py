@@ -13,7 +13,7 @@ for module in (cerealizer, pynotebook):
     assert module.__file__.startswith('/usr/share/pnb/'), module
 from pynotebook import graphics, cerealizerformat
 graphics.register_classes()
-examples = sorted(glob.glob('/usr/share/pnb/examples/*.pnb'))
+examples = sorted(glob.glob('/usr/share/pnb/pnb/examples/*.pnb'))
 assert examples
 for name in examples:
     assert len(cerealizerformat.loads(open(name, 'rb').read())), name
