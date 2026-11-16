@@ -20,9 +20,9 @@ for name in examples:
 
 # pnb runs until the window is closed: still alive after 5 s means it started
 try:
-    subprocess.run(['xvfb-run', '-a', 'pnb', examples[0]], timeout=5,
-                   check=True, capture_output=True, text=True)
-    sys.exit('pnb exited early')
+    r = subprocess.run(['xvfb-run', '-a', 'pnb', examples[0]], timeout=5,
+                       capture_output=True, text=True)
+    sys.exit(f'pnb exited early:\n{r.stdout}{r.stderr}')
 except subprocess.TimeoutExpired:
     pass
 print('pnb ok, wx', wx.version(), 'examples', len(examples))

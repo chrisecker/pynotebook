@@ -34,14 +34,14 @@ def get_demos():
 
 @functools.cache
 def get_file_history():
-    # shared by all windows, stored in ~/.config/pnb.conf
+    # shared by all windows, stored in the platform's place (Linux: ~/.pnb)
     history = wx.FileHistory()
     history.Load(get_config())
     return history
 
 def get_config():
-    style = wx.CONFIG_USE_LOCAL_FILE | wx.CONFIG_USE_XDG
-    return wx.FileConfig('pnb', style=style)
+    # not wx.CONFIG_USE_XDG: missing in wxPython 4.2.0 (Debian 12)
+    return wx.Config('pnb')
 
 def save_history():
     config = get_config()
