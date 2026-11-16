@@ -73,7 +73,6 @@ class MainWindow(wx.Frame):
         sb = wx.StatusBar(self)
         self.SetStatusBar(sb)
         self.Bind(wx.EVT_IDLE, self.update)
-        self.SetName("pnb_python_notebook")
 
      
     def make_menubar(self):
@@ -361,6 +360,10 @@ def main(argv=None):
     if debug:
         redirect = True
     
+    # GTK takes the program name (Wayland app_id, X11 WM_CLASS) from
+    # argv[0], which is "-c" when started by the /usr/bin/pnb wrapper.
+    # GNOME needs "pnb" to match pnb.desktop and show the icon in Alt-Tab.
+    sys.argv[0] = 'pnb'
     app = wx.App(redirect=redirect)
 
     win = None    

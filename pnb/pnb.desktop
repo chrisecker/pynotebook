@@ -8,4 +8,4 @@ Icon=pnb
 Terminal=false
 Categories=Utility;Development;
 MimeType=application/x-pnb;
-StartupWMClass=pnb_python_notebook
+StartupWMClass=pnb
