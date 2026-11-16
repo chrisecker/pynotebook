@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pynotebook"
-version = "0.4.1"
+version = "0.4.2"
 description = "A wxPython based notebook environment for interactive computing."
 authors = ["C. Ecker <textmodelview@gmail.com>"]
 readme = "README.md"

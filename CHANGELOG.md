@@ -5,6 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-16
+
+### Added
+- pnb: File → Open Recent, shared by all windows.
+- pnb: Help → Demos opens the example notebooks; Help → About pnb shows the versions.
+
+### Changed
+- The example notebooks are part of the pnb package, so pip installs them too. The Linux packages now install them to `/usr/share/pnb/pnb/examples/`.
+
+### Fixed
+- Cursor up/down did not leave the current cell.
+- pnb showed no icon in the GNOME Alt-Tab switcher (Wayland).
+
 ## [0.4.1] - 2026-11-14
 
 ### Fixed
@@ -87,7 +100,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## 0.0.1 - 2016-03-16
 - Initial release.
 
-[Unreleased]: https://codeberg.org/chrisecker/pynotebook/compare/v0.4.1...HEAD
+[Unreleased]: https://codeberg.org/chrisecker/pynotebook/compare/v0.4.2...HEAD
+[0.4.2]: https://codeberg.org/chrisecker/pynotebook/compare/v0.4.1...v0.4.2
 [0.4.1]: https://codeberg.org/chrisecker/pynotebook/compare/v0.4.0...v0.4.1
 [0.4.0]: https://codeberg.org/chrisecker/pynotebook/compare/v0.3.0...v0.4.0
 [0.3.0]: https://codeberg.org/chrisecker/pynotebook/compare/v0.2.6...v0.3.0
