@@ -2,9 +2,12 @@
 
 import sys
 import os
+import platform
+from importlib import metadata
 
 try:
     import wx
+    import wx.adv
 except ImportError: # wxPython is an optional dependency, see README
     sys.exit('pnb needs wxPython 4.2 or newer. Install it with\n'
              '    pip install "pnb[wx]"\n'
@@ -21,6 +24,13 @@ from pynotebook.inspector import TextCellInspector
 wildcard = "Pynotebook files (*.pnb)|*.pnb|" \
            "Python source (*.py)|*.py|" \
            "All files (*.*)|*.*"
+
+def get_version(name):
+    try:
+        return metadata.version(name)
+    except metadata.PackageNotFoundError: # running from the source tree
+        return 'unknown'
+
 
 def action2cmd(label, action):
     # Create a menu command from an editor action
@@ -52,6 +62,7 @@ class MainWindow(wx.Frame):
     interpreter_entries = ['execute', 'execute_all', 'complete', 'help', 'reset']
     debug_entries = ['rebuild_view', 'clean_model', 'dump_texels', 
                      'dump_styles', 'dump_boxes', 'profile_insert']
+    help_entries = ['about']
     updaters = ()
     def __init__(self, filename=None):
         displayw, displayh = wx.GetDisplaySize()
@@ -124,6 +135,7 @@ class MainWindow(wx.Frame):
         menubar.Append(mk_menu(self.interpreter_entries), '&Interpreter')
         if debug:
             menubar.Append(mk_menu(self.debug_entries), 'Debug')
+        menubar.Append(mk_menu(self.help_entries), '&Help')
 
         self.SetAcceleratorTable(wx.AcceleratorTable(accel))
         self.updaters = updaters 
@@ -219,6 +231,20 @@ class MainWindow(wx.Frame):
             self.shell.clear_undo()
 
         dlg.Destroy()
+
+    def about(self, event):
+        "&About pnb"
+        info = wx.adv.AboutDialogInfo()
+        info.SetName('pnb')
+        info.SetVersion(get_version('pnb'))
+        info.SetDescription(
+            'Python Notebook\n\n'
+            f'pynotebook {get_version("pynotebook")}\n'
+            f'Python {platform.python_version()}\n'
+            f'{wx.version()}')
+        info.SetWebSite('https://codeberg.org/chrisecker/pynotebook')
+        info.SetIcon(logo.GetIcon())
+        wx.adv.AboutBox(info, self)
 
     def close(self, event):
         "&Close\tCtrl-W"
